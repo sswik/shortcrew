@@ -1,0 +1,27 @@
+# 03 — 공개 몰(`/{name_slug}`)·파트너스 링크·프록시 URL
+
+퍼블릭 몰에서 **쿠팡 바로가기** URL을 보강하고, **몰 상품 fetch URL**을 절대 경로로 맞춘 내용이다.
+
+## `main.py` — 인플 허브 `GET /{name_slug}` (및 `/review`, `/introduce` 탭 경로)
+
+- 레거시 `GET /shop/{path_slug}`·`/reviews/...` 는 새 URL로 **301** 만 수행한다.
+
+- `shop_page_config`에 다음을 포함:
+  - **`coupangPartnersLptag`**: `COUPANG_PARTNERS_LPTAG` 또는 별칭 `COUPANG_LPTAG`
+- **`mallProductsFetchUrl`**: `PUBLIC_SITE_URL` 없으면 `request.base_url` 기준 **`{origin}/api/mall-products?...`** 절대 URL (브라우저에서 `//api` 이슈 방지)
+
+## `static/js/shop-products.js`
+
+- **`withCoupangPartnerQuery(url, lptag)`**: 호스트가 `*.coupang.com`이면 쿼리에 `lptag`만 추가(이미 있으면 덮어쓰지 않음).
+- 카드의 `a.href`에 위 결과 적용.
+- 최종 `fetchUrl`에 대해 **`//` 스킴 상대 URL 보정** 및 **`/` 상대 경로 → `new URL(..., origin)`** 정규화.
+
+## 환경 변수
+
+- `PUBLIC_SITE_URL`: 로컬/배포별로 한 줄씩 (예: `http://localhost:8028`, `https://shortcrew.co.kr`).
+- `COUPANG_PARTNERS_LPTAG`: 몰에서 열리는 쿠팡 링크에 붙는 `lptag` (비우면 해당 쿼리 생략).
+
+## 연계 문서
+
+- [01_CHANNEL_GUIDE.md](01_CHANNEL_GUIDE.md) — 채널·몰 env
+- [02_SHEETS_DEEPLINK_PREVIEW.md](02_SHEETS_DEEPLINK_PREVIEW.md) — 시트 딥링크 미리보기/전송 흐름

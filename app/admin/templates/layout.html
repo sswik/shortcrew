@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{% block title %}관리자 | 숏크루{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/images/mall/logo.png">
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    screens: {
+                        tablet: '1024px',
+                        desktop: '1280px',
+                    },
+                    fontFamily: {
+                        sans: ['Pretendard', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            DEFAULT: '#6200ea',
+                            50: '#ede3ff',
+                            100: '#d4bff9',
+                            200: '#b794f6',
+                            300: '#9969f0',
+                            400: '#7c3aed',
+                            500: '#6200ea',
+                            600: '#5a00d4',
+                            700: '#4a00ad',
+                            800: '#3b008c',
+                            900: '#2d0066',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.28);
+            border-radius: 4px;
+        }
+    </style>
+    <link rel="stylesheet" href="/static/css/admin-layout.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="h-screen overflow-hidden bg-slate-100 font-sans text-slate-900 antialiased">
+    <div class="flex h-full">
+        <div
+            id="admin-sidebar-overlay"
+            data-open="false"
+            class="fixed inset-0 z-[85] bg-slate-900/50 opacity-0 pointer-events-none transition-opacity duration-200 data-[open=true]:opacity-100 data-[open=true]:pointer-events-auto lg:hidden"
+            aria-hidden="true"
+        ></div>
+
+        <aside
+            id="admin-sidebar"
+            class="group/sidebar fixed left-0 top-0 z-[90] flex h-full min-h-0 w-60 shrink-0 -translate-x-full flex-col bg-primary-800 shadow-xl transition-[width,transform] duration-300 ease-out data-[open=true]:translate-x-0 lg:relative lg:z-auto lg:translate-x-0 lg:data-[collapsed=true]:w-[4.25rem]"
+            aria-label="관리자 메뉴"
+        >
+            <div class="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-3 lg:px-4 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2">
+                <a href="/admin/dashboard" class="flex min-w-0 items-center gap-2.5 text-white hover:text-primary-50 lg:group-data-[collapsed=true]/sidebar:hidden">
+                    <img src="/static/images/mall/logo.png" alt="" class="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-white/20" width="32" height="32">
+                    <span class="sidebar-text truncate text-base font-bold tracking-tight lg:group-data-[collapsed=true]/sidebar:sr-only">숏크루</span>
+                </a>
+                <button
+                    type="button"
+                    id="admin-lnb-collapse"
+                    class="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/90 hover:bg-white/20 lg:inline-flex"
+                    aria-expanded="true"
+                    aria-label="메뉴 접기"
+                >
+                    <span class="material-icons text-xl lg:group-data-[collapsed=true]/sidebar:hidden" aria-hidden="true">chevron_left</span>
+                    <span class="material-icons hidden text-xl lg:group-data-[collapsed=true]/sidebar:inline" aria-hidden="true">chevron_right</span>
+                </button>
+            </div>
+
+            <nav class="custom-scrollbar flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-4 pb-6">
+                <p class="sidebar-text mb-2 px-3 text-[0.65rem] font-bold uppercase tracking-wider text-white/55 lg:group-data-[collapsed=true]/sidebar:sr-only">몰 운영</p>
+
+                <a href="/admin/dashboard" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path == '/admin/dashboard' or request.url.path == '/admin/dashboard/' %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">dashboard</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">대시보드</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">대시보드</span>
+                </a>
+                <a href="/admin/products" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/products') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">inventory_2</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">상품 관리</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">상품 관리</span>
+                </a>
+                <a href="/admin/reviews" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/reviews') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">rate_review</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">리뷰 관리</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">리뷰 관리</span>
+                </a>
+
+                <p class="sidebar-text mb-2 mt-5 px-3 text-[0.65rem] font-bold uppercase tracking-wider text-white/55 lg:group-data-[collapsed=true]/sidebar:sr-only">데이터</p>
+                <a href="/admin/influencers" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/influencers') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">groups</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">인플루언서</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">인플루언서</span>
+                </a>
+                <a href="/admin/sheets" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/sheets') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">table_chart</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">시트</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">시트</span>
+                </a>
+                <a href="/admin/logs" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/logs') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">analytics</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">로그</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">로그</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-text shrink-0 border-t border-white/10 px-4 py-3 lg:group-data-[collapsed=true]/sidebar:sr-only">
+                <a href="/" class="text-sm font-semibold text-white/75 hover:text-white">← 사용자 홈</a>
+            </div>
+        </aside>
+
+        <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <header class="flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3 shadow-sm tablet:px-5">
+                <button
+                    type="button"
+                    id="admin-mobile-menu"
+                    class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-600 hover:bg-primary-50 hover:text-primary tablet:hidden"
+                    aria-label="메뉴 열기"
+                    aria-expanded="false"
+                >
+                    <span class="material-icons text-2xl">menu</span>
+                </button>
+                <h1 class="min-w-0 flex-1 truncate text-lg font-extrabold tracking-tight text-slate-900 tablet:text-xl">{% block page_heading %}백오피스{% endblock %}</h1>
+                <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <a href="/" target="_blank" rel="noopener noreferrer" class="hidden text-sm font-semibold text-slate-600 hover:text-primary sm:inline">사용자 사이트</a>
+                    <form method="post" action="/admin/logout" class="m-0 inline">
+                        <button type="submit" class="rounded-lg border border-primary bg-white px-3 py-1.5 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary-50">로그아웃</button>
+                    </form>
+                </div>
+            </header>
+
+            {% block below_header %}{% endblock %}
+
+            <main class="flex-1 overflow-y-auto">
+                <div class="mx-auto w-full max-w-7xl px-4 py-6 tablet:px-6 desktop:px-8">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+    </div>
+    {# fixed 오버레이는 overflow-hidden 조상 밖에 두어 전체 화면(사이드바 포함)에 동일한 딤이 깔리게 함 #}
+    {% block modals %}{% endblock %}
+    <script src="/static/js/admin-layout.js" defer></script>
+</body>
+</html>

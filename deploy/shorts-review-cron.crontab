@@ -1,0 +1,3 @@
+# 매일 06:00 (컨테이너 TZ=Asia/Seoul) — 쇼츠 시트 트리거 리뷰 자동 발행
+# supercronic: https://github.com/aptible/supercronic
+0 6 * * * /usr/local/bin/python /app/scripts/run_shorts_sheet_reviews.py

@@ -1,0 +1,25 @@
+"""JSON API: 쿠팡 검색, 네이버 트렌드, 구글 시트 전송, 채널 설정.
+
+도메인별 라우트는 `app.admin.ops.routes` 패키지에 두고 여기서만 조합한다.
+"""
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+from app.admin.ops.routes import ai as ai_routes
+from app.admin.ops.routes import channels as channels_routes
+from app.admin.ops.routes import coupang as coupang_routes
+from app.admin.ops.routes import mall as mall_routes
+from app.admin.ops.routes import naver as naver_routes
+from app.admin.ops.routes import sheets as sheets_routes
+from app.admin.ops.routes import shorts_review as shorts_review_routes
+
+router = APIRouter()
+
+router.include_router(channels_routes.router, tags=["admin-ops"])
+router.include_router(coupang_routes.router, prefix="/coupang", tags=["admin-ops"])
+router.include_router(naver_routes.router, prefix="/naver", tags=["admin-ops"])
+router.include_router(sheets_routes.router, prefix="/sheets", tags=["admin-ops"])
+router.include_router(ai_routes.router, prefix="/ai", tags=["admin-ops"])
+router.include_router(mall_routes.router, prefix="/mall", tags=["admin-ops"])
+router.include_router(shorts_review_routes.router, prefix="/shorts-review", tags=["admin-ops"])

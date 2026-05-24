@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{{ influencer.display_name }} 리뷰 | 숏크루{% endblock %}
+
+{% block content %}
+<section class="hero compact">
+    <img class="avatar lg" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
+    <div>
+        <h1>{{ influencer.display_name }} 큐레이션 리뷰</h1>
+        <p class="muted">정리된 상품 리뷰 목록입니다.</p>
+    </div>
+</section>
+
+<section>
+    <h2 class="section-title">리뷰 목록</h2>
+    <div class="review-board">
+        {% for review in reviews %}
+        <a class="review-board__item" href="/{{ influencer.name_slug }}/review/{{ review.id }}">
+            <div>
+                <h3>{{ review.title }}</h3>
+                <p class="review-board__meta muted">{{ review.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+            </div>
+            <span class="review-board__arrow">보기</span>
+        </a>
+        {% else %}
+        <p class="muted">등록된 리뷰가 없습니다.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

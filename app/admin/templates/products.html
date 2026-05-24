@@ -1,0 +1,233 @@
+{% extends "layout.html" %}
+
+{% block title %}상품 관리 | 숏크루{% endblock %}
+{% block page_heading %}상품 관리{% endblock %}
+
+{% block below_header %}
+<p class="shrink-0 border-b border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-semibold leading-snug text-amber-950 tablet:px-5 md:text-sm">
+    이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
+</p>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    /* 긴 URL·에러 문구가 모달 밖으로 삐져나가지 않게 */
+    #statusMessage { overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+</style>
+{% endblock %}
+
+{% block modals %}
+    <div id="channelSettingsModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/55 hidden" aria-modal="true" role="dialog">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6 border border-slate-200">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">키워드 설정</h3>
+            <p class="text-sm text-slate-500 mb-2">관심 키워드 (모니터링용)</p>
+            <p class="text-xs text-slate-400 mb-3">키워드를 쉼표(,)로 구분해서 입력하세요.</p>
+            <textarea id="monitorKeywordsInput" rows="4" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary focus:border-primary p-3 outline-none resize-y mb-4" placeholder="예: 정장, 니트, 스킨케어"></textarea>
+            <div class="flex gap-2 justify-end">
+                <button type="button" id="channelSettingsCancel" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors text-sm font-medium">취소</button>
+                <button type="button" id="channelSettingsSave" class="px-4 py-2 rounded-lg bg-primary hover:bg-primary-700 text-white font-medium text-sm transition-colors">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="statusModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/55 hidden" aria-modal="true" role="dialog">
+        <div class="min-w-0 max-w-md w-full mx-4 max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-100 bg-white p-6 text-center shadow-2xl tablet:p-8">
+            <div id="statusIcon" class="mx-auto mb-4 flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-3xl"></div>
+            <h3 id="statusTitle" class="mb-2 text-lg font-bold text-slate-800 tablet:text-xl">알림</h3>
+            <p id="statusMessage" class="mb-6 text-left text-sm leading-relaxed text-slate-600 tablet:text-base">내용이 표시됩니다.</p>
+            <button type="button" onclick="closeStatusModal()" class="w-full rounded-xl bg-slate-900 py-3 font-bold text-white transition-all hover:bg-slate-800 active:scale-95">확인</button>
+        </div>
+    </div>
+
+    <div id="ai-curation-modal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/55 hidden" aria-modal="true" role="dialog">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 border border-slate-200">
+            <h3 class="text-lg font-bold text-primary mb-2">AI 숏폼 특화 상품 추천</h3>
+            <p class="text-sm text-slate-500 mb-4">Gemini 2.5 Flash가 실시간 트렌드를 분석하여 바이럴 확률이 높은 3가지를 엄선했습니다.</p>
+            <div id="ai-curation-content" class="flex flex-col gap-4"></div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" id="btn-save-ai-history" onclick="saveCuratedHistory()"
+                        class="bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 text-sm font-bold py-2 px-4 rounded-lg transition-all active:scale-95">
+                    💾 이 추천 결과 기록장에 저장
+                </button>
+                <button type="button" id="ai-curation-close" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors text-sm font-medium">닫기</button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+<section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div class="flex flex-col md:flex-row md:items-center gap-4">
+                <label for="channelSelect" class="font-semibold text-slate-700 w-24">채널 선택</label>
+                <select id="channelSelect" class="flex-1 max-w-sm bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block p-2.5 outline-none transition-all">
+                    <option value="">-- [자동화 채널을 선택하세요] --</option>
+                </select>
+                <div class="text-xs text-slate-500 italic">채널을 선택하면 네이버 트렌드가 로드됩니다.</div>
+            </div>
+        </section>
+
+        <section id="trendSection" class="hidden space-y-4">
+            <div class="bg-primary-50 p-6 rounded-xl border border-primary-100">
+                <h2 class="text-sm font-bold text-primary-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <span class="animate-pulse w-2 h-2 bg-primary-500 rounded-full"></span>
+                    실시간 급상승(네이버 발굴)
+                </h2>
+                <div class="trend-keywords flex flex-wrap gap-2" id="trendDiscovery"></div>
+            </div>
+
+            <div class="bg-emerald-50 p-6 rounded-xl border border-emerald-100">
+                <div class="flex items-center justify-between gap-4 mb-4">
+                    <h2 class="text-sm font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-2">
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        내 관심 키워드(모니터링)
+                    </h2>
+                    <button type="button" id="channelSettingsBtn" class="shrink-0 inline-flex items-center gap-2 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 hover:border-emerald-400 text-emerald-800 hover:text-emerald-900 font-medium px-4 py-2.5 rounded-lg transition-all text-sm shadow-sm">
+                        키워드 설정
+                    </button>
+                </div>
+                <div class="trend-keywords flex flex-wrap gap-2" id="trendMonitoring"></div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-2xl">🤖</span>
+                    <h2 class="text-lg font-bold text-slate-800">AI 숏폼 큐레이터</h2>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-primary-50/50 p-6 rounded-xl border border-primary-100 flex flex-col justify-center items-center text-center gap-4 hover:border-primary-300 transition-all">
+                        <div>
+                            <h3 class="font-bold text-primary-900 mb-1">알아서 추천받기</h3>
+                            <p class="text-xs text-primary-700 font-medium">아무 조건 없이 지금 가장 핫한 꿀템 찾기</p>
+                        </div>
+                        <button type="button" id="btn-ai-auto" onclick="runAICuration('auto')"
+                                class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold px-4 py-3.5 rounded-lg transition-all text-sm shadow-md active:scale-95 flex justify-center items-center gap-2">
+                            ✨ AI 자동 추천 실행
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col justify-center gap-4 hover:border-slate-300 transition-all">
+                        <div class="text-center">
+                            <h3 class="font-bold text-slate-800 mb-1">내 조건에 맞춰 받기</h3>
+                            <p class="text-xs text-slate-500 font-medium">타겟, 가격 등 특별한 지시사항이 있을 때</p>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <textarea id="aiCustomPrompt" rows="5"
+                                      placeholder="예: 5만원 이하, 20대 여성 타겟"
+                                      class="w-full bg-white border border-slate-300 text-sm rounded-lg focus:ring-slate-500 focus:border-slate-500 p-2.5 outline-none transition-all placeholder:text-slate-400 resize-y min-h-0"></textarea>
+                            <button type="button" id="btn-ai-custom" onclick="runAICuration('custom')"
+                                    class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-3 rounded-lg transition-all text-sm shadow-md active:scale-95 flex justify-center items-center gap-2">
+                                🔍 조건 맞춰서 추천받기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-right mt-2">
+                    <button type="button" id="btn-ai-reopen" onclick="openLastAIModal()"
+                            class="hidden text-sm text-primary-600 hover:text-primary-800 underline font-bold transition-all">
+                        👀 방금 닫은 큐레이션 결과 다시 보기 (무료)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[600px]">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-700">쿠팡 상품 검색</h2>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="searchKeyword" placeholder="검색어를 입력하세요" class="flex-1 bg-slate-50 border border-slate-300 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-2.5 outline-none transition-all">
+                    <button type="button" id="searchBtn" class="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-5 rounded-lg transition-all shadow-md active:scale-95">검색</button>
+                </div>
+                <p id="searchMeta" class="text-xs text-slate-500 mb-3">요청 개수와 실제 반환 개수가 여기에 표시됩니다.</p>
+                <div id="searchResults" class="overflow-y-auto custom-scrollbar flex-1 border rounded-lg border-slate-100 bg-slate-50 p-2">
+                    <p class="text-slate-400 text-center mt-10">검색어를 입력하거나 트렌드를 클릭하세요.</p>
+                </div>
+            </section>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[600px] overflow-hidden">
+                <div class="p-6 pb-4 flex justify-between items-center">
+                    <h2 class="text-lg font-bold flex items-center gap-2 text-slate-700">업로드 대기 목록</h2>
+                    <span id="itemCount" class="text-xs font-bold bg-primary-100 text-primary-700 px-2 py-1 rounded-full">0개 선택됨</span>
+                </div>
+            
+                <div class="overflow-y-auto custom-scrollbar flex-1 min-h-0 px-6">
+                    <table class="w-full text-sm text-left border-t border-slate-100">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50/80 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-4 py-3">상품</th>
+                                <th class="px-4 py-3">정보</th>
+                                <th class="px-4 py-3 text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="confirmTable" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            
+                <div class="p-5 bg-slate-50 border-t border-slate-200">
+                    <button type="button" id="sendSheetBtn" 
+                            class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-lg shadow-primary-100 flex items-center justify-center gap-2 active:scale-95">
+                        구글 시트로 전송
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mt-8">
+            <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-700">등록된 상품 관리 (시트 연동)</h2>
+            <p class="text-sm text-slate-500 mb-4">채널을 선택하면 해당 구글 시트의 상품 목록이 표시됩니다. 체크 후 버튼으로 게시상태를 일괄 변경할 수 있습니다.</p>
+            <p class="text-xs text-red-700 bg-red-100 border border-red-500 rounded-lg px-3 py-2 mb-4">외부 게시/복사에는 반드시 G열 딥링크만 사용하세요. 딥링크가 비어 있으면 집계되지 않을 수 있습니다.</p>
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="btnStatusPublish" onclick="changeStatus('게시중')"
+                            class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        선택 항목 게시중으로 변경
+                    </button>
+                    <button type="button" id="btnStatusWait" onclick="changeStatus('대기')"
+                            class="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-700 text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        선택 항목 대기로 변경
+                    </button>
+                    <button type="button" id="btnMallImport"
+                            class="px-4 py-2 rounded-lg border border-primary-300 bg-primary-50 text-primary-900 font-medium text-sm transition-colors hover:bg-primary-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                        몰 시트·API 점검
+                    </button>
+                    <button type="button" id="btnRefreshRegistered"
+                            class="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-800 font-medium text-sm transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="시트에서 등록 상품 표만 다시 불러옵니다">
+                        목록 새로고침
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="registeredSortSelect" class="text-xs text-slate-500 font-medium">정렬</label>
+                    <select id="registeredSortSelect" class="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-2 outline-none">
+                        <option value="newest">최근 추가순</option>
+                        <option value="oldest">오래된 순</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="px-3 py-3 w-10 text-center"><input type="checkbox" id="registeredSelectAll" title="전체 선택"></th>
+                            <th class="px-3 py-3 w-16 text-center">이미지</th>
+                            <th class="px-3 py-3 max-w-[180px] md:max-w-[240px]">상품명</th>
+                            <th class="px-3 py-3 w-[7.5rem]">등록일</th>
+                            <th class="px-3 py-3 w-28">가격</th>
+                            <th class="px-3 py-3 w-20 text-center">딥링크</th>
+                            <th class="px-3 py-3 w-24 text-center">상태</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registeredTable" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+            <div id="registeredPagination" class="flex flex-wrap items-center justify-between gap-4 mt-4 hidden"></div>
+            <p id="registeredEmpty" class="text-slate-400 text-sm mt-4 hidden">채널을 선택하면 등록된 상품이 여기에 표시됩니다.</p>
+        </section>
+</div>
+<script src="/static/js/admin-products.js" defer></script>
+{% endblock %}

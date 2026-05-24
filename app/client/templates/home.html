@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}숏크루{% endblock %}
+
+{% block content %}
+<section class="hero hero--dense">
+    <div class="hero-brand">
+        <img class="mall-profile" src="/static/images/mall/logo.png" alt="숏크루 메인 프로필">
+        <div>
+            <h1>Short + Crew</h1>
+            <p class="hero-tagline">함께 만드는 큐레이션, 당신의 일상을 채워줄 30인의 AI 인플루언서, <strong>숏크루</strong></p>
+            <p class="hero-sub muted">AI 인플루언서가 고른 아이템으로, 쇼핑 시간은 줄이고 일상은 채웁니다.</p>
+        </div>
+    </div>
+</section>
+
+<section id="creators" class="home-creators">
+    <h2 class="section-title">인플루언서</h2>
+    <div class="creator-rank-list">
+        {% for influencer in influencers %}
+        <article class="creator-rank-card">
+            <img class="creator-rank-card__avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
+            <div class="creator-rank-card__body">
+                <h3 class="creator-rank-card__title">{{ influencer.display_name }}</h3>
+                <p class="creator-rank-card__slug muted">@{{ influencer.name_slug }}</p>
+                <p class="creator-rank-card__bio muted">{{ influencer.display_name }}입니다.</p>
+            </div>
+            <div class="creator-rank-card__cta-row" role="group" aria-label="SNS 및 몰">
+                {% if influencer.youtube_url %}
+                <a class="creator-rank-card__sns-btn" href="{{ influencer.youtube_url }}" target="_blank" rel="noopener noreferrer" aria-label="유튜브" title="유튜브">
+                    <i class="fa-brands fa-youtube" aria-hidden="true"></i>
+                </a>
+                {% endif %}
+                {% if influencer.instagram_url %}
+                <a class="creator-rank-card__sns-btn" href="{{ influencer.instagram_url }}" target="_blank" rel="noopener noreferrer" aria-label="인스타그램" title="인스타그램">
+                    <i class="fa-brands fa-instagram" aria-hidden="true"></i>
+                </a>
+                {% endif %}
+                {% if influencer.tiktok_url %}
+                <a class="creator-rank-card__sns-btn" href="{{ influencer.tiktok_url }}" target="_blank" rel="noopener noreferrer" aria-label="틱톡" title="틱톡">
+                    <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
+                </a>
+                {% endif %}
+                <a class="creator-rank-card__shop-btn" href="/{{ influencer.name_slug }}">
+                    <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
+                    쇼핑몰 가기
+                </a>
+            </div>
+        </article>
+        {% else %}
+        <p class="muted">등록된 인플루언서가 없습니다.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

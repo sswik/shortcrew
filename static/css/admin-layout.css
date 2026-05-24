@@ -1,0 +1,257 @@
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Dark mode scrollbar */
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Loading animation */
+.loading-spinner {
+    border: 2px solid #f3f4f6;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+/* Dark mode loading spinner */
+.dark .loading-spinner {
+    border: 2px solid #374151;
+    border-top: 2px solid #3b82f6;
+}
+
+/* Dark mode prose styles */
+.dark .prose {
+    color: #e5e7eb;
+}
+
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4,
+.dark .prose h5,
+.dark .prose h6 {
+    color: #f9fafb;
+}
+
+.dark .prose p {
+    color: #e5e7eb;
+}
+
+.dark .prose strong {
+    color: #f9fafb;
+}
+
+.dark .prose em {
+    color: #e5e7eb;
+}
+
+.dark .prose blockquote {
+    color: #d1d5db;
+    border-left-color: #4b5563;
+}
+
+.dark .prose ul,
+.dark .prose ol {
+    color: #e5e7eb;
+}
+
+.dark .prose li {
+    color: #e5e7eb;
+}
+
+.dark .prose a {
+    color: #60a5fa;
+}
+
+.dark .prose a:hover {
+    color: #93c5fd;
+}
+
+.dark .prose code {
+    color: #f9fafb;
+    background-color: #374151;
+}
+
+.dark .prose pre {
+    background-color: #1f2937;
+    color: #e5e7eb;
+}
+
+.dark .prose hr {
+    border-color: #4b5563;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Sidebar collapsed state */
+#sidebar.collapsed {
+    width: 4rem;
+}
+
+#sidebar.collapsed .sidebar-text {
+    display: none;
+}
+
+#sidebar.collapsed .nav-icon {
+    margin-right: 0;
+}
+
+#sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+}
+
+/* Tooltip for collapsed sidebar */
+.nav-item {
+    position: relative;
+}
+
+.nav-item .tooltip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1f2937;
+    color: white;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s;
+    z-index: 50;
+    margin-left: 0.5rem;
+}
+
+/* Show tooltip only when sidebar is collapsed */
+#sidebar.collapsed .nav-item:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Show sidebar toggle button when collapsed - center it */
+#sidebar.collapsed #sidebar-toggle {
+    display: block;
+    margin: 0 auto;
+}
+
+#sidebar.collapsed .lnb-header {
+    justify-content: center;
+}
+
+/* Hide logo when collapsed, show only toggle button */
+#sidebar.collapsed .lnb-header > a {
+    display: none;
+}
+
+/* Sidebar overlay mode for screens below 1024px */
+@media (max-width: 1023px) {
+    #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+    }
+    #sidebar.show {
+        transform: translateX(0);
+    }
+    #sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 40;
+    }
+    #sidebar-overlay.show {
+        display: block;
+    }
+}
+
+/* Sidebar auto-collapse for tablet (1024px-1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+    #sidebar.collapsed {
+        width: 4rem;
+    }
+}
+
+/* Desktop minimum (1280px+) */
+@media (min-width: 1280px) {
+    #sidebar {
+        position: relative;
+    }
+}
+
+/* Main content adjustment */
+.main-content-expanded {
+    margin-left: 0;
+}
+
+/* LNB 스크롤 영역 설정 */
+.lnb-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.lnb-header {
+    flex-shrink: 0;
+}
+.lnb-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 1.5rem; /* 추가 하단 여백 */
+}
+.lnb-content::-webkit-scrollbar {
+    width: 4px;
+}
+.lnb-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+.lnb-content::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 2px;
+}
+.lnb-content::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* 접힌 상태에서도 스크롤 유지 */
+#sidebar.collapsed .lnb-container {
+    height: 100vh;
+}
+#sidebar.collapsed .lnb-header {
+    flex-shrink: 0;
+    height: 4rem; /* h-16과 동일한 높이 */
+}
+#sidebar.collapsed .lnb-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 1.5rem; /* 접힌 상태에서도 하단 여백 유지 */
+}
+

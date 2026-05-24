@@ -1,0 +1,4 @@
+# wrangler deploy 시 실제 worker 이름·route 는 계정에 맞게 수정
+name = "coupang-image-admin2"
+main = "index.js"
+compatibility_date = "2024-01-01"

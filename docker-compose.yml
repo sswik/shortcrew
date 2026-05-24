@@ -1,0 +1,59 @@
+services:
+  shortcrew:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shortcrew
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8028:8028"
+    volumes:
+      # 호스트에 있는 DB·시트 키를 컨테이너에 연결(이미지 재빌드 후에도 유지).
+      - ./database.db:/app/database.db
+      - ./google-key.json:/app/google-key.json:ro
+      # 접속 상세 로그(AccessDetailLogMiddleware) — 호스트 ./logs 와 동기화.
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8028/health', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # 쇼츠 시트 리뷰 자동 발행 (매일 06:00 KST). docs/06_SHORTS_SHEET_REVIEWS.md · docs/07 참고.
+  # 사용: docker compose --profile shorts-cron up -d
+  # SQLite: 웹과 동시 쓰기가 잦으면 락 가능 — 필요 시 호스트 cron으로만 스크립트 실행 검토.
+  shorts-review-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shortcrew-shorts-review-cron
+    restart: unless-stopped
+    profiles: ["shorts-cron"]
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Seoul
+    volumes:
+      - ./database.db:/app/database.db
+      - ./google-key.json:/app/google-key.json:ro
+    command: ["/usr/local/bin/supercronic", "/app/deploy/shorts-review-cron.crontab"]
+
+  # Zero Trust 터널(토큰 방식). 로컬만: docker compose up -d / 터널까지: docker compose --profile tunnel up -d
+  # 호스트 네트워크: Zero Trust 오리진이 http://127.0.0.1:8028 일 때 브리지 안의 localhost 가 아니라 호스트에 바인된 포트로 붙는다(502 방지).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: shortcrew-cloudflared
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run
+    depends_on:
+      shortcrew:
+        condition: service_healthy

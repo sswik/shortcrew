@@ -1,0 +1,139 @@
+# 쇼츠 시트 트리거 리뷰 자동화 (채널 템플릿)
+
+네이버 트렌드·쿠팡 **검색 API**는 이 파이프라인에 포함하지 않는다. **구글 시트 두 탭**과 **Gemini**, **YouTube Data API**(폴백), 선택 **`yt-dlp`**(자막 URL 추출)만 사용한다.
+
+## 표기
+
+- **`<ID>`** — 로스터·`.env` 에 쓰는 **채널 번호 문자열** (`104`, `201` 등). 아래 모든 `CHANNEL_<ID>_…` 는 실제 값으로 치환한다.
+- **`<slug>`** — 공개 URL·DB에 쓰는 **인플루언서 `name_slug`** (`shopping`, `tennis` 등). 로스터의 `mall_influencer_slug` 와 맞춘다.
+
+## 동작 요약
+
+1. **기획 탭(탭1)** `get_all_rows` — **C열 = `완료`**(기본, env로 변경) 이고 **D열 날짜 = 오늘**(기본 KST 등 `SHORTS_PLAN_DATE_TZ`) 이고 **W열에 YouTube URL**(기본) 이 있는 행만.
+2. **상품 탭(탭2)** — **I열 = `게시중`**(기본) 이고 **G열 딥링크**(기본) 가 비어 있지 않은 행만.
+3. 탭1 **F열 상품명** 과 탭2 **C열 상품명** 을 정규화해 매칭한다.
+4. `yt-dlp --dump-json` 으로 자막 URL을 찾아 텍스트화하고, 실패 시 YouTube **videos.list** 로 제목·설명을 쓴다.
+5. **Gemini 2.5 Flash** 로 제목·HTML 본문을 만들고, 본문 끝에 **G열 딥링크** CTA 를 한 번 더 붙인다(모델이 링크를 넣지 않도록 프롬프트에서 막고 시스템이 후처리). CTA 마크업은 `<p class="shorts-review-cta">` + `<a href="…">쿠팡에서 구매하기</a>` 형태를 사용한다.
+6. SQLite `reviews` 에 INSERT 하며 `source_youtube_video_id` 로 **동일 영상 재발행**을 막는다.
+7. `product_id` 는 **DB `products`** 중 `influencer_slug` 가 해당 채널의 **`mall_influencer_slug`** 와 맞고, 상품명이 시트와 동일(정규화)인 행을 찾는다.
+
+## 필수 준비물
+
+- 프로젝트 루트 **`google-key.json`** (서비스 계정) — 시트 읽기 권한.
+- `.env` : **`GOOGLE_GEMINI_KEY`**, **`YOUTUBE_API_KEY`**.
+- 서버(또는 cron 호스트)에 **`yt-dlp`** 가 PATH 에 있으면 자막 품질이 좋아진다. 없으면 Data API 스니펫 폴백만 쓴다.
+
+## `.env` 키 규칙 (`CHANNEL_<ID>_…`)
+
+모든 채널별 값은 **`CHANNEL_<ID>_*`** 패턴이다 (`app/admin/ops/env_names.py` 의 `channel_env` 규칙과 동일).
+
+[`.env.example`](../.env.example) 에 채널별 블록이 있으면 복사해 채운다.
+
+| 변수 패턴 | 설명 |
+|-----------|------|
+| `CHANNEL_<ID>_SHORTS_AUTOMATION_ENABLED` | `1` / `true` / `yes` / `on` 이면 해당 채널이 `scripts/run_shorts_sheet_reviews.py` · 어드민 시트 연동 대상에 포함된다. |
+| `CHANNEL_<ID>_SHORTS_PLAN_TAB` | 기획 시트 **탭 이름**(필수 권장) |
+| `CHANNEL_<ID>_SHORTS_PRODUCT_TAB` | 상품 탭 이름(보조). **`CHANNEL_<ID>_TAB`(몰 상품 탭)이 있으면 그쪽이 우선**이고, 둘 다 비면 API로 탭 목록을 읽어 두 번째 탭을 쓴다. |
+| `CHANNEL_<ID>_SHORTS_*_RANGE` | 읽기 범위 (기본 `A:W` / `A:K`) |
+| `CHANNEL_<ID>_SHORTS_*_STATUS_VALUE` | 기획·상품 탭 상태 문자열 기본값 (`완료` / `게시중`) |
+| `CHANNEL_<ID>_SHORTS_COL_*` | 열 문자 (기본 C,D,W,F / I,C,G) |
+| `CHANNEL_<ID>_SHORTS_COL_PLAN_DATE` | 기획 탭 **처리 기준일** 열 (기본 `D`) |
+| `CHANNEL_<ID>_SHORTS_PLAN_DATE_TZ` | 위 날짜와 비교할 **오늘**의 IANA 타임존 (기본 `Asia/Seoul`) |
+| `CHANNEL_<ID>_FILE_ID` | 스프레드시트 ID (필수) |
+| `CHANNEL_<ID>_MALL_INFLUENCER_SLUG` | DB `influencers.name_slug`·시트 매칭에 쓰는 몰 슬러그. **비우면** 채널별 로스터가 정한 **기본값**을 쓴다(예: [`shopping.py`](../app/admin/ops/channels/roster/shopping.py) 는 `shopping`). |
+| `CHANNEL_<ID>_TAB` | 몰 상품 시트 탭(예: `한소율픽-상품`). 어드민 **연결 상품**은 `게시중`+딥링크 행 전부이며, DB에 없으면 **음수 id**로만 선택하고 저장 시 `reviews.sheet_product_title` / `sheet_product_deeplink` 에 시트 상품명·G열 URL을 남긴다(`product_id` 없음). `SHORTS_PRODUCT_TAB` 과 둘 다 비면 **두 번째 탭** 휴리스틱. |
+
+## 실행 방법
+
+### CLI 플래그
+
+| 플래그 | 설명 |
+|--------|------|
+| `--dry-run` | **`reviews` INSERT 없음.** 시트 매칭 → 자막 → Gemini까지는 실행하고, 생성된 **제목·HTML 미리보기만 로그**에 출력. |
+| `--limit N` | 매칭된 행 중 **앞에서 N건만** 처리. **D열=오늘** 필터는 그대로 적용된다. |
+
+```bash
+.venv/bin/python scripts/setup_sqlite_from_roster.py
+.venv/bin/python scripts/run_shorts_sheet_reviews.py
+# 한 채널만 (예: ID 104)
+.venv/bin/python scripts/run_shorts_sheet_reviews.py --dry-run --limit 1 <ID>
+.venv/bin/python scripts/run_shorts_sheet_reviews.py --limit 1 <ID>
+```
+
+### cron: 매일 **새벽 06:00 KST** (예시)
+
+`SHORTS_PLAN_DATE_TZ`(기본 `Asia/Seoul`) 기준 “오늘”과 D열을 비교한다.
+
+```cron
+0 6 * * * cd /절대/경로/shortcrew && TZ=Asia/Seoul .venv/bin/python scripts/run_shorts_sheet_reviews.py >> /var/log/shorts_sheet_reviews.log 2>&1
+```
+
+### Docker Compose (프로필 `shorts-cron`)
+
+호스트 cron 대신 컨테이너에서 **매일 06:00 KST**에 같은 스크립트를 돌리려면: `docker compose build && docker compose --profile shorts-cron up -d`. 상세·SQLite 주의는 [07_SHORTS_AUTOMATION_DIAGNOSIS_AND_REMEDIATION.md](07_SHORTS_AUTOMATION_DIAGNOSIS_AND_REMEDIATION.md) 7절.
+
+한 채널만 돌리려면 인자로 **`<ID>`** 를 붙인다.
+
+```bash
+.venv/bin/python scripts/run_shorts_sheet_reviews.py <ID>
+```
+
+### 어드민 JSON API
+
+`POST /admin/api/ops/shorts-review/run`
+
+- `{ "channel_id": "<ID>" }` — 해당 채널만.
+- `{}` — `SHORTS_AUTOMATION_ENABLED` 가 켜진 채널 전부.
+- `{ "channel_id": "<ID>", "dry_run": true, "limit": 1 }` — 드라이런 1건.
+
+관리자 로그인(또는 개발 시 무인증) 쿠키가 필요하다.
+
+### `scripts/` 유지 파일
+
+| 스크립트 | 용도 |
+|----------|------|
+| [`scripts/run_shorts_sheet_reviews.py`](../scripts/run_shorts_sheet_reviews.py) | 쇼츠 시트 파이프라인 (cron·수동) |
+| [`scripts/setup_sqlite_from_roster.py`](../scripts/setup_sqlite_from_roster.py) | DB·로스터 시드·스키마 보정 |
+| [`scripts/reset_reviews_all.py`](../scripts/reset_reviews_all.py) | **`reviews` 테이블만** 전체 삭제 + id 시퀀스 초기화 (`--yes` 필수) |
+
+## 공개 리뷰 상세 (`/{slug}/review/{id}`)
+
+- 저장된 HTML에 `<p class="shorts-review-cta">…</p>` 가 있으면, 렌더 시 본문에서 **해당 단락을 제거**하고 `href` 를 뽑아 **하단 푸터**에 **「쿠팡에서 구매하기」** 버튼으로만 노출한다. ([`app/client/review_html.py`](../app/client/review_html.py), [`app/client/templates/review_detail.html`](../app/client/templates/review_detail.html))
+- `product_id` 가 있고 DB에 쿠팡 URL이 있으면 상단·하단 **몰 구매 CTA**(`buy_url`)도 유지된다.
+
+## 어드민 리뷰 작성·수정 (`/admin/reviews/…`)
+
+- **연결 상품**: 로스터에서 **`mall_influencer_slug` = 현재 인플 `name_slug`** 인 채널을 찾아, 그 채널의 **상품 탭**에서 `게시중` 행만 읽고 DB `products` 와 매칭한다. ([`admin_review_products.py`](../app/admin/ops/services/admin_review_products.py))
+- 인플 변경 시 `GET /admin/reviews/product-options?influencer_slug=…` 로 옵션 갱신. ([`admin-review-form-products.js`](../static/js/admin-review-form-products.js))
+- **「구매 버튼 본문에 반영」**: 선택 상품의 딥링크로 `shorts-review-cta` 블록을 본문 끝에 넣거나 갱신한다. ([`admin-review-editor.js`](../static/js/admin-review-editor.js))
+- 초기 HTML은 `<script type="application/json" id="review-initial-html-json">` + `JSON.parse` 로 로드한다.
+
+## 서버 로그 (처리 여부 확인)
+
+| 로그 키워드 | 시점 |
+|-------------|------|
+| `review_published_shorts` | `create_review_from_shorts_pipeline` 커밋 직후 |
+| `review_admin_persist` | 어드민 리뷰 생성·수정 저장 직후 |
+| `review_public_view` | 공개 리뷰 상세 응답 시 |
+| `admin_review_products` | 어드민 연결 상품 시트 탭·매칭·폴백 |
+
+공개 상세 로그는 요청마다 한 줄이므로, 트래픽이 크면 레벨 조정·필터를 검토한다.
+
+## 신규 채널 절차 (템플릿)
+
+1. `app/admin/ops/channels/roster/` 에 **새 모듈**을 추가한다. `build()` dict 에는 기존 채널과 동일한 키 스키마를 맞춘다(참고: [`new_channel_template.py`](../app/admin/ops/channels/roster/new_channel_template.py), 구현 예: [`shopping.py`](../app/admin/ops/channels/roster/shopping.py)).
+2. [`registry.py`](../app/admin/ops/channels/registry.py) 의 `CHANNEL_BUILDERS` 에 `새모듈.build` 를 등록한다.
+3. `.env` 에 **`CHANNEL_<ID>_*`** 전체 블록을 추가한다 (`FILE_ID`, `MALL_INFLUENCER_SLUG`, `SHORTS_*`, `TAB` 등).
+4. 시트 열이 다르면 `SHORTS_COL_*` 만 조정한다.
+
+## 트러블슈팅
+
+- **매칭 행 수 0** — 탭 이름·상태 문자열·열 문자가 시트와 한 글자라도 다르면 필터에서 전부 탈락한다. **D열 날짜가 “오늘”과 다르면** 해당 행은 처리되지 않는다.
+- **상품 미매칭** — DB `products.title` 이 시트 상품명과 정규화 기준으로 같아야 한다.
+- **어드민 연결 상품이 비어 있음** — `mall_influencer_slug` 와 DB 인플 `name_slug` 가 같은 채널이 로스터에 있는지, `CHANNEL_<ID>_FILE_ID`·탭·`google-key.json` 권한·`게시중` 문자열을 확인한다. 시트 실패 시 해당 인플의 DB 상품 전체로 폴백한다.
+- **자막·메타 없음** — `yt-dlp` 미설치·차단 또는 API 키 오류. `YOUTUBE_API_KEY` 로 최소 제목·설명은 온다.
+- **Gemini 503** — `GOOGLE_GEMINI_KEY` 확인.
+
+## 보안
+
+API 키·서비스 계정 JSON은 **저장소·채팅에 넣지 말 것**. 유출 시 즉시 키 회전.

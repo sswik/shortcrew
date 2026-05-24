@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ review.title }} | {{ influencer.display_name }} | 숏크루{% endblock %}
+
+{% block body_extra %}{% if buy_url %} class="page--review-detail"{% endif %}{% endblock %}
+
+{% block content %}
+<article class="detail-article detail-article--review">
+    {% if buy_url %}
+    <p class="detail-article__cta-wrap">
+        <a class="btn btn-primary btn-purchase-wide" href="{{ buy_url }}" target="_blank" rel="noopener" data-track-click
+           data-influencer="{{ influencer.name_slug }}" {% if review.product_id %}data-product-id="{{ review.product_id }}"{% endif %} data-product-name="{{ (review.product.title if review.product else (review.sheet_product_title or review.title)) | e }}" data-review-id="{{ review.id }}">쿠팡에서 바로구매</a>
+    </p>
+    {% endif %}
+    <div class="detail-header">
+        <img class="avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
+        <div>
+            <p class="muted">{{ influencer.display_name }}</p>
+            <h1>{{ review.title }}</h1>
+            <p class="muted">{{ review.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
+        </div>
+    </div>
+    <div class="detail-content">
+        {{ review_body_html | safe }}
+    </div>
+    {% if buy_url %}
+    <div class="review-purchase-dock" role="region" aria-label="구매">
+        <a class="btn btn-primary btn-purchase-wide btn-purchase-wide--dock" href="{{ buy_url }}" target="_blank" rel="noopener" data-track-click
+           data-influencer="{{ influencer.name_slug }}" {% if review.product_id %}data-product-id="{{ review.product_id }}"{% endif %} data-product-name="{{ (review.product.title if review.product else (review.sheet_product_title or review.title)) | e }}" data-review-id="{{ review.id }}">쿠팡에서 바로구매</a>
+    </div>
+    {% endif %}
+    <div class="detail-article__footer-row">
+        {% if shorts_deeplink %}
+        <a class="btn btn-primary btn-coupang-footer" href="{{ shorts_deeplink }}" target="_blank" rel="noopener noreferrer" data-track-click data-influencer="{{ influencer.name_slug }}" {% if review.product_id %}data-product-id="{{ review.product_id }}"{% endif %} data-product-name="{{ (review.product.title if review.product else (review.sheet_product_title or review.title)) | e }}" data-review-id="{{ review.id }}">쿠팡에서 구매하기</a>
+        {% endif %}
+        <a class="btn btn-outline detail-article__footer-back" href="/{{ influencer.name_slug }}/review">목록으로 돌아가기</a>
+    </div>
+</article>
+{% endblock %}

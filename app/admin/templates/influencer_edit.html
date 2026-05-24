@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block title %}인플루언서 정보 편집 | 숏크루{% endblock %}
+{% block page_heading %}인플루언서 정보 편집하기{% endblock %}
+
+{% block content %}
+<p class="mb-6 text-sm text-slate-600">공개 몰·홈 카드에 표시되는 프로필 정보를 수정합니다. 슬러그(<code class="rounded bg-slate-100 px-1">{{ influencer.name_slug }}</code>)는 변경할 수 없습니다.</p>
+
+<form method="post" action="/admin/influencers/{{ influencer.name_slug }}/edit" class="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="display_name">표시 이름</label>
+        <input id="display_name" name="display_name" type="text" required value="{{ influencer.display_name }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="profile_image">프로필 이미지 URL</label>
+        <input id="profile_image" name="profile_image" type="text" value="{{ influencer.profile_image }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="cover_image">커버 이미지 URL</label>
+        <input id="cover_image" name="cover_image" type="text" value="{{ influencer.cover_image or '' }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="bio">소개 (홈·채널소개)</label>
+        <textarea id="bio" name="bio" rows="4" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">{{ influencer.bio or '' }}</textarea>
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="youtube_url">유튜브 URL</label>
+        <input id="youtube_url" name="youtube_url" type="url" value="{{ influencer.youtube_url or '' }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://www.youtube.com/..." />
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="instagram_url">인스타그램 URL</label>
+        <input id="instagram_url" name="instagram_url" type="url" value="{{ influencer.instagram_url or '' }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://www.instagram.com/..." />
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="tiktok_url">틱톡 URL</label>
+        <input id="tiktok_url" name="tiktok_url" type="url" value="{{ influencer.tiktok_url or '' }}"
+               class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="https://www.tiktok.com/..." />
+    </div>
+    <div class="flex gap-3 pt-2">
+        <button type="submit" class="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-600">저장</button>
+        <a href="/admin/influencers" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">취소</a>
+    </div>
+</form>
+{% endblock %}

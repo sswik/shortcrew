@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+
+{% block title %}인플루언서 | 숏크루{% endblock %}
+{% block page_heading %}인플루언서{% endblock %}
+
+{% block content %}
+<p class="mb-6 text-sm text-slate-600">등록된 인플루언서와 슬러그·상품·리뷰 수를 확인합니다.</p>
+
+<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 font-semibold text-slate-700 tablet:px-6">표시 이름</th>
+                    <th class="px-4 py-3 font-semibold text-slate-700 tablet:px-6">슬러그</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 tablet:table-cell tablet:px-6">상품</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 tablet:table-cell tablet:px-6">리뷰</th>
+                    <th class="px-4 py-3 font-semibold text-slate-700 tablet:px-6">작업</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for row in influencer_rows %}
+                <tr class="hover:bg-slate-50/80">
+                    <td class="px-4 py-3 font-medium text-slate-900 tablet:px-6">{{ row.influencer.display_name }}</td>
+                    <td class="px-4 py-3 text-slate-600 tablet:px-6"><code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{{ row.influencer.name_slug }}</code></td>
+                    <td class="hidden px-4 py-3 text-slate-800 tablet:table-cell tablet:px-6">{{ row.product_count }}</td>
+                    <td class="hidden px-4 py-3 text-slate-800 tablet:table-cell tablet:px-6">{{ row.review_count }}</td>
+                    <td class="px-4 py-3 tablet:px-6">
+                        <div class="flex flex-wrap gap-3 text-sm font-medium">
+                            <a href="/admin/influencers/{{ row.influencer.name_slug }}/edit" class="text-primary hover:text-primary-800">편집</a>
+                            <a href="/{{ row.influencer.name_slug }}" target="_blank" rel="noopener" class="text-primary hover:text-primary-800">몰</a>
+                            <a href="/{{ row.influencer.name_slug }}/review" target="_blank" rel="noopener" class="text-primary hover:text-primary-800">리뷰</a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-center text-slate-500 tablet:px-6">등록된 인플루언서가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

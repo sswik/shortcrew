@@ -1,0 +1,5 @@
+{
+  "include": ["app", "main.py", "models.py", "tests"],
+  "venvPath": ".venv",
+  "executionEnvironments": [{ "root": ".", "pythonVersion": "3.12" }]
+}

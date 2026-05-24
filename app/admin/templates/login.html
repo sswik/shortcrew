@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>관리자 로그인 | 숏크루</title>
+    <link rel="icon" type="image/png" href="/static/images/mall/logo.png">
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            DEFAULT: '#6200ea',
+                            50: '#ede3ff',
+                            600: '#5a00d4',
+                            700: '#4a00ad',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+    <link rel="stylesheet" href="/static/css/admin-layout.css">
+</head>
+<body class="flex min-h-full flex-col items-center justify-center bg-gradient-to-br from-violet-950 via-violet-900 to-primary-700 p-6 font-sans antialiased">
+    <div class="w-full max-w-md rounded-2xl border border-primary-300/40 bg-white/95 p-8 shadow-2xl shadow-violet-950/40 backdrop-blur">
+        <h1 class="m-0 text-2xl font-extrabold tracking-tight text-violet-950">관리자 로그인</h1>
+        <p class="mt-2 text-sm leading-relaxed text-slate-600">
+            백오피스 접근을 위해
+            {% if admin_email_configured %}관리자 이메일과 비밀번호를{% else %}비밀번호를{% endif %}
+            입력하세요.
+            {% if not admin_email_configured %}
+            <span class="mt-1 block text-xs font-normal text-slate-500">(선택) 이메일은 <code class="rounded bg-slate-100 px-1">ADMIN_EMAIL</code> 설정 시에만 검증됩니다.</span>
+            {% endif %}
+        </p>
+        {% if error %}
+        <p class="mt-4 text-sm font-semibold text-red-700">{{ error }}</p>
+        {% endif %}
+        <form class="mt-6 grid gap-4" method="post" action="/admin/login">
+            {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+            <label class="grid gap-1.5 text-sm font-semibold text-slate-800">
+                이메일
+                <input type="email" name="email" value="" autocomplete="username" {% if admin_email_configured %}required autofocus{% endif %} class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30" placeholder="{% if admin_email_configured %}관리자 계정 이메일{% else %}선택{% endif %}">
+            </label>
+            <label class="grid gap-1.5 text-sm font-semibold text-slate-800">
+                비밀번호
+                <div class="relative">
+                    <input id="admin-login-password" type="password" name="password" required autocomplete="current-password" {% if not admin_email_configured %}autofocus{% endif %} class="w-full rounded-lg border border-slate-300 py-2.5 pl-3 pr-11 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <button type="button" id="admin-login-password-toggle" class="absolute right-1 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/40" aria-label="비밀번호 표시" title="비밀번호 표시">
+                        <span class="icon-show-password" aria-hidden="true">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </span>
+                        <span class="icon-hide-password hidden" aria-hidden="true">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        </span>
+                    </button>
+                </div>
+            </label>
+            <button type="submit" class="mt-1 w-full rounded-lg bg-primary py-3 text-sm font-bold text-white shadow-md transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">로그인</button>
+        </form>
+        <p class="mt-6 text-center text-sm font-semibold">
+            <a href="/" class="text-primary hover:underline">← 사용자 홈</a>
+        </p>
+    </div>
+    <script>
+        (function () {
+            var input = document.getElementById("admin-login-password");
+            var btn = document.getElementById("admin-login-password-toggle");
+            if (!input || !btn) return;
+            var showIcon = btn.querySelector(".icon-show-password");
+            var hideIcon = btn.querySelector(".icon-hide-password");
+            btn.addEventListener("click", function () {
+                var willShowPlain = input.type === "password";
+                input.type = willShowPlain ? "text" : "password";
+                var plain = input.type === "text";
+                if (showIcon) showIcon.classList.toggle("hidden", plain);
+                if (hideIcon) hideIcon.classList.toggle("hidden", !plain);
+                btn.setAttribute("aria-label", plain ? "비밀번호 숨기기" : "비밀번호 표시");
+                btn.setAttribute("title", plain ? "비밀번호 숨기기" : "비밀번호 표시");
+            });
+        })();
+    </script>
+</body>
+</html>

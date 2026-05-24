@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}클릭 로그 | 숏크루{% endblock %}
+{% block page_heading %}클릭 로그{% endblock %}
+
+{% block content %}
+<p class="mb-6 text-sm text-slate-600">최근 쿠팡 링크 클릭 기록입니다. (최대 {{ log_limit }}건)</p>
+
+<div class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-4 py-3 font-semibold text-slate-700 tablet:px-6">시각 (KST)</th>
+                    <th class="px-4 py-3 font-semibold text-slate-700 tablet:px-6">인플루언서</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 md:table-cell tablet:px-6">페이지 URL</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 md:table-cell tablet:px-6">유입</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 sm:table-cell tablet:px-6">OS</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 sm:table-cell tablet:px-6">브라우저</th>
+                    <th class="hidden px-4 py-3 font-semibold text-slate-700 lg:table-cell tablet:px-6">상품명</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for log in log_rows %}
+                <tr class="hover:bg-slate-50/80">
+                    <td class="whitespace-nowrap px-4 py-2.5 text-slate-600 tablet:px-6">{{ log.created_at_kst }}</td>
+                    <td class="px-4 py-2.5 tablet:px-6"><code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">{{ log.influencer_slug }}</code></td>
+                    <td class="hidden max-w-[14rem] px-4 py-2.5 text-slate-700 md:table-cell tablet:max-w-xs tablet:px-6">
+                        <span class="block truncate" title="{{ log.page_url_tooltip | e }}">{{ log.page_url_display }}</span>
+                    </td>
+                    <td class="hidden max-w-[12rem] px-4 py-2.5 text-slate-700 md:table-cell tablet:max-w-[14rem] tablet:px-6">
+                        <span class="block truncate" title="{{ log.referrer_tooltip | e }}">{{ log.referrer_display }}</span>
+                    </td>
+                    <td class="hidden whitespace-nowrap px-4 py-2.5 text-slate-700 sm:table-cell tablet:px-6" title="{{ log.client_ua_tooltip | e }}">{{ log.access_os }}</td>
+                    <td class="hidden whitespace-nowrap px-4 py-2.5 text-slate-700 sm:table-cell tablet:px-6" title="{{ log.client_ua_tooltip | e }}">{{ log.access_browser }}</td>
+                    <td class="hidden max-w-xs truncate px-4 py-2.5 text-slate-700 lg:table-cell tablet:px-6">{{ log.product_title or "—" }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="px-4 py-8 text-center text-slate-500 tablet:px-6">클릭 로그가 없습니다.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+
+{% block title %}{% if review %}리뷰 수정{% else %}새 리뷰{% endif %} | 숏크루{% endblock %}
+{% block page_heading %}{% if review %}리뷰 수정{% else %}새 리뷰{% endif %}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
+<script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
+<script src="https://uicdn.toast.com/editor/3.2.2/i18n/ko-kr.js"></script>
+<style>
+    #review-editor-el .toastui-editor-defaultUI { max-width: 100%; }
+    #review-editor-el .toastui-editor-defaultUI-toolbar,
+    #review-editor-el .toastui-editor-main { max-width: 100%; }
+</style>
+{% endblock %}
+
+{% block content %}
+{# sample/backoffice/templates/notes-write.html 과 동일한 뼈대: 전폭(pb-20), 상단 제목행 + 우측 액션, 흰 카드 안에 폼만 #}
+<div class="pb-20">
+    <div class="mb-6 flex flex-col tablet:flex-row tablet:items-center tablet:justify-between">
+        <div>
+            <nav class="mb-1 flex items-center text-sm text-slate-500">
+                <a href="/admin/reviews" class="transition-colors hover:text-slate-900">리뷰 관리</a>
+                <span class="mx-2">/</span>
+                <span class="font-medium text-slate-900">{% if review %}수정{% else %}새 글 작성{% endif %}</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-slate-900">{% if review %}리뷰 수정{% else %}새 리뷰 등록{% endif %}</h1>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-2 tablet:mt-0 tablet:gap-3">
+            <button type="button" id="btn-review-ai-open" class="inline-flex items-center rounded-lg border border-primary-200 bg-primary-50 px-4 py-2 text-sm font-medium text-primary-800 shadow-sm transition-colors hover:bg-primary-100">
+                <span class="material-icons mr-1 text-base">auto_awesome</span> AI 글쓰기
+            </button>
+            <a href="{% if review %}/admin/reviews/{{ review.id }}{% else %}/admin/reviews{% endif %}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50">
+                취소
+            </a>
+            <button type="submit" form="review-admin-form" class="flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700">
+                <span class="material-icons mr-1 text-sm">save</span> 저장
+            </button>
+        </div>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm tablet:p-8">
+        <form id="review-admin-form" method="post" action="{% if review %}/admin/reviews/{{ review.id }}/edit{% else %}/admin/reviews{% endif %}" class="space-y-6" data-review-id="{% if review %}{{ review.id }}{% endif %}">
+            <div>
+                <label for="review-influencer" class="mb-2 block text-sm font-medium text-slate-700">인플루언서</label>
+                <select id="review-influencer" name="influencer_slug" required class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    {% for influencer in influencers %}
+                    <option value="{{ influencer.name_slug }}" {% if review and review.influencer_slug == influencer.name_slug %}selected{% endif %}>{{ influencer.display_name }} ({{ influencer.name_slug }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="review-product" class="mb-2 block text-sm font-medium text-slate-700">연결 상품</label>
+                <p class="mb-2 text-xs text-slate-500">채널 구글 시트 상품 탭에서 <strong class="text-slate-700">게시중</strong>인 행만 표시합니다. 항목은 <strong class="text-slate-700">상품명</strong>만 보이며, 딥링크는 시트 <strong class="text-slate-700">G열</strong>(기본) 값입니다.</p>
+                <input type="hidden" name="sheet_product_title" id="review-sheet-product-title" value="{{ (review.sheet_product_title or '') if review else '' }}" />
+                <input type="hidden" name="sheet_product_deeplink" id="review-sheet-product-deeplink" value="{{ (review.sheet_product_deeplink or '') if review else '' }}" />
+                <select id="review-product" name="product_id" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">선택 안 함</option>
+                    {% for product in products %}
+                    <option value="{{ product.id }}" data-deeplink="{{ product.deeplink | e }}" data-sheet-title="{{ (product.sheet_title or '') | e }}" {% if review and review.product_id == product.id %}selected{% elif review and saved_sheet_option_id is not none and product.id == saved_sheet_option_id %}selected{% endif %}>{{ product.title }}</option>
+                    {% endfor %}
+                </select>
+                <div class="mt-3 flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 tablet:flex-row tablet:items-center tablet:justify-between">
+                    <p class="text-xs text-slate-600">본문 맨 아래 <code class="rounded bg-white px-1">쿠팡에서 구매하기</code> 블록을 시트 딥링크로 넣거나 갱신합니다. URL을 직접 붙이지 않아도 됩니다.</p>
+                    <button type="button" id="review-cta-insert" class="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700">구매 버튼 본문에 반영</button>
+                </div>
+            </div>
+            <div>
+                <label for="review-title" class="mb-2 block text-sm font-medium text-slate-700">제목</label>
+                <input id="review-title" type="text" name="title" required maxlength="255" value="{{ review.title if review else '' }}" placeholder="리뷰 제목을 입력하세요" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-slate-700">내용</label>
+                <div class="overflow-hidden rounded-lg border border-slate-300">
+                    <div id="review-editor-el" style="min-height: 500px"></div>
+                </div>
+                <input type="hidden" name="content" id="review-content-hidden" value="" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="review-ai-modal" class="fixed inset-0 z-[999] hidden items-center justify-center bg-black/60 p-4" aria-hidden="true">
+    <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+        <h3 class="text-lg font-bold text-slate-900">AI 글쓰기</h3>
+        <p class="mt-1 text-sm text-slate-500">폼의 <strong class="text-slate-700">연결 상품</strong>·<strong class="text-slate-700">인플루언서</strong>를 기준으로 초안을 만듭니다. 상품을 먼저 선택하세요.</p>
+        <label for="review-ai-extra" class="mt-4 mb-1 block text-sm font-medium text-slate-700">추가 요청 (선택)</label>
+        <textarea id="review-ai-extra" rows="3" placeholder="예: 짧게 3문단, 가격 강조, 쿠폰 언급 없이" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"></textarea>
+        <div id="review-ai-error" class="mt-3 hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"></div>
+        <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" id="review-ai-generate" class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700">생성</button>
+        </div>
+        <div id="review-ai-result" class="mt-4 hidden border-t border-slate-200 pt-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">생성된 제목</p>
+            <p id="review-ai-result-title" class="mt-1 text-base font-semibold text-slate-900"></p>
+            <p class="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">미리보기</p>
+            <div id="review-ai-result-preview" class="prose prose-sm mt-2 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-800"></div>
+        </div>
+        <div class="mt-6 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
+            <button type="button" id="review-ai-close" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50">닫기</button>
+            <button type="button" id="review-ai-apply" disabled class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-primary">작성하기</button>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="review-initial-html-json">{{ (review.content if review else "") | tojson }}</script>
+<script src="/static/js/admin-review-form-products.js" defer></script>
+<script src="/static/js/admin-review-editor.js" defer></script>
+<script src="/static/js/admin-review-ai.js" defer></script>
+{% endblock %}

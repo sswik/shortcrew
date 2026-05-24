@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+
+{% block title %}관리자 대시보드 | 숏크루{% endblock %}
+{% block page_heading %}대시보드{% endblock %}
+
+{% block content %}
+<div class="mb-2 text-sm text-slate-600">전체 몰 운영 현황과 기본 통계입니다.</div>
+
+<div class="mb-8 grid grid-cols-1 gap-6 tablet:grid-cols-2 desktop:grid-cols-4">
+    <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                    <span class="material-icons text-lg text-white">people</span>
+                </div>
+            </div>
+            <div class="ml-4 min-w-0">
+                <p class="text-sm font-medium text-slate-500">인플루언서</p>
+                <p class="text-2xl font-semibold text-slate-900">{{ stats.influencers }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600">
+                    <span class="material-icons text-lg text-white">inventory_2</span>
+                </div>
+            </div>
+            <div class="ml-4 min-w-0">
+                <p class="text-sm font-medium text-slate-500">상품</p>
+                <p class="text-2xl font-semibold text-slate-900">{{ stats.products }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500">
+                    <span class="material-icons text-lg text-white">article</span>
+                </div>
+            </div>
+            <div class="ml-4 min-w-0">
+                <p class="text-sm font-medium text-slate-500">리뷰</p>
+                <p class="text-2xl font-semibold text-slate-900">{{ stats.reviews }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-600">
+                    <span class="material-icons text-lg text-white">ads_click</span>
+                </div>
+            </div>
+            <div class="ml-4 min-w-0">
+                <p class="text-sm font-medium text-slate-500">클릭 로그</p>
+                <p class="text-2xl font-semibold text-slate-900">{{ stats.clicks }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="mb-4 flex items-center justify-between gap-3">
+        <h2 class="text-lg font-medium text-slate-900">인플루언서 링크</h2>
+    </div>
+    <div class="space-y-4">
+        {% for influencer in influencers %}
+        <div class="flex flex-col gap-3 border-b border-slate-100 pb-4 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+                <p class="font-semibold text-slate-900">{{ influencer.display_name }}</p>
+                <p class="text-sm text-slate-500">@{{ influencer.name_slug }}</p>
+            </div>
+            <div class="flex shrink-0 gap-4 text-sm font-medium">
+                <a href="/{{ influencer.name_slug }}" class="text-primary hover:text-primary-800">몰</a>
+                <a href="/{{ influencer.name_slug }}/review" class="text-primary hover:text-primary-800">리뷰</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

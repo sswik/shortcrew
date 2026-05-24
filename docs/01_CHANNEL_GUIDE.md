@@ -1,0 +1,160 @@
+# 운영 채널 추가 가이드
+
+shortcrew **admin ops**에서 쓰는 채널 목록은 코드로 정의됩니다. API·시트·트렌드 수집이 모두 `channel_id`를 기준으로 동작하므로, 아래 순서를 지키면 됩니다.
+
+**관련 문서:** [02 — 시트 딥링크·미리보기](02_SHEETS_DEEPLINK_PREVIEW.md) · [03 — 공개 몰·파트너스 링크](03_PUBLIC_SHOP_AND_PARTNERS_LINKS.md) · [04 — 관리자 UI·SQLite·env](04_ADMIN_UI_ENV_SQLITE.md)
+
+## 디렉터리 역할
+
+| 경로 | 역할 |
+|------|------|
+| `app/admin/ops/channels/constants.py` | 공통 히스토리 시트 ID, 네이버 카테고리 ID 맵, 기본 트렌드 키워드 등 **채널 공용** 값 |
+| `app/admin/ops/channels/roster/` | 채널 **한 개당 Python 모듈 하나** (`build()` 제공) |
+| `app/admin/ops/channels/registry.py` | 어떤 roster 모듈을 **어떤 순서로** 목록에 넣을지 (`CHANNEL_BUILDERS`). 상단 주석에 **채널 dict 스키마**가 정리되어 있음 |
+| `app/admin/ops/channels/__init__.py` | `CHANNELS = [b() for b in CHANNEL_BUILDERS]` 로 최종 리스트 조립 |
+| `app/admin/ops/channels/env_names.py` | `channel_env("201", "FILE_ID")` → `CHANNEL_201_FILE_ID` 규칙 |
+| `app/admin/ops/services/mall_tracking.py` | `PUBLIC_SITE_URL`·요청 origin, DB 인플루언서 매칭으로 **공개 몰 URL** 계산(시트 미리보기·웹훅 등에서 사용) |
+
+외부 코드는 보통 다음만 import 합니다.
+
+```python
+from app.admin.ops.channels import CHANNELS
+```
+
+## 전역 환경 변수 (채널과 함께 쓰는 값)
+
+채널별 `CHANNEL_*`와 별도로, 루트 [`.env.example`](../.env.example)에 적힌 아래 값이 **몰 URL·시트 보조 UI**에 쓰입니다.
+
+| 변수 | 역할 |
+|------|------|
+| `PUBLIC_SITE_URL` | 끝 슬래시 없이 베이스 URL. 비우면 HTTP 요청의 Host 기준. 공개 몰에 내려가는 **몰 상품 fetch URL 절대화**, 시트 딥링크 미리보기의 **`mall_shop_url`** 계산 등 |
+| `COUPANG_PARTNERS_LPTAG` | 공개 몰에서 쿠팡 바로가기에 붙는 `lptag`. 비우면 넣지 않음. **별칭** `COUPANG_LPTAG`도 동일하게 읽음 |
+| `COMMON_HISTORY_FILE_ID` | 여러 채널이 공유하는 기록용 스프레드시트 ID |
+| `COUPANG_IMAGE_WORKER_BASE` | (선택) 몰 썸네일용 Workers 베이스. 비우면 코드 기본값 사용 |
+
+## 채널 추가 절차
+
+### 1. `channel_id` 정하기
+
+- URL·로그·설정 JSON 키로 쓰이므로 **숫자 문자열**(예: `201`, `01`, `102`) 또는 영문·밑줄 조합을 짧게 정합니다.
+- 운영 번호와 맞출 때는 **`201` → `.env` 접두어 `CHANNEL_201_*`** 처럼 한 줄로 대응시키기 쉽습니다.
+- 이미 존재하는 `channel_id`와 중복되면 안 됩니다.
+
+### 2. roster 모듈 추가
+
+`app/admin/ops/channels/roster/` 아래에 **한 채널당 Python 모듈 하나**를 둡니다. 파일명은 `channel_id`와 같을 필요는 없고, 현재 기본 채널은 `roster/soccer.py`에 `channel_id: "201"` 로 정의되어 있습니다.
+
+모듈 안에 **`def build() -> dict:`** 를 두고, 아래 키를 갖는 dict를 반환합니다. (세부 설명은 `registry.py` 상단 주석과 동일 스키마입니다.)
+
+| 키 | 타입 | 설명 |
+|----|------|------|
+| `channel_id` | `str` | 위에서 정한 ID |
+| `name` | `str` | 관리 화면·드롭다운 등에 보일 **표시 이름**. **`○○○픽(인플루언서분야)`** 형식으로 통일(예: `ooo픽(oo인플루언서)`) |
+| `google_sheet_id` | `str` | 상품/운영용 구글 스프레드시트 ID |
+| `sheet_tab_name` | `str` | 해당 스프레드시트의 시트(탭) 이름 |
+| `history_sheet_id` | `str` | 기록용 스프레드시트 ID. 공통만 쓰면 `constants`의 `COMMON_HISTORY_FILE_ID`와 동일하게 두면 됨 |
+| `history_sheet_tab` | `str` | 기록 시트 탭 이름 |
+| `naver_category_id` | `list[str]` | 네이버 쇼핑 카테고리 ID 문자열 목록 |
+| `trend_keywords` | `list[str]` | 데이터랩 등 트렌드 시드 키워드 |
+| `monitor_keywords` | `list[str]` | 없으면 `[]` |
+| `product_delivery_url` | `str` (선택) | 시트에 상품 행을 넣은 뒤, 동일 데이터를 **JSON POST**로 보낼 구글 Apps Script(웹앱) URL. 비우면 해당 채널은 웹훅을 호출하지 않음 |
+| `mall_products_api_url` | `str` (선택) | 공개 몰 `/{name_slug}` 화면이 브라우저에서 **GET**으로 상품 JSON을 받을 주소(sample/ops `config.apiUrl`). `?channel=` 쿼리는 `mall_products_channel_param` 또는 `channel_id`. roster 에서 env가 비어 있으면 **`product_delivery_url`과 동일 URL로 폴백** |
+| `mall_products_channel_param` | `str` (선택) | 웹앱에 붙는 `channel` 쿼리 값. 비우면 `channel_id` 숫자. 샘플 short-mall-template 의 `APPS_SCRIPT_CHANNEL` 과 맞출 것 |
+| `mall_influencer_slug` | `str` (선택) | DB `Influencer`의 **`name_slug` 또는 `shop_path_slug`** 와 **문자열이 같으면** 해당 인플 몰에 `mall_products_api_url`·채널이 연결됨. 브라우저 공개 URL은 **`/{name_slug}`** (`mall_tracking.shop_public_path_slug`는 항상 `name_slug`) |
+
+`product_delivery_url`·`mall_products_api_url` 등은 코드에서 `os.getenv(...)` 로 채우며, 키 이름은 **`app.admin.ops.channels.env_names.channel_env`** 로 만든다.
+
+- 예: `channel_id` 가 `201` → `channel_env("201", "PRODUCT_DELIVERY_WEBAPP_URL")` → **`CHANNEL_201_PRODUCT_DELIVERY_WEBAPP_URL`**
+- 예: `channel_id` 가 `01` → **`CHANNEL_01_FILE_ID`** 등 (`channel_env("01", "FILE_ID")`)
+
+신규 채널은 `app/admin/ops/channels/roster/_template_new_channel.py` 를 복사해 시작하면 동일 패턴을 유지하기 쉽다.
+
+공통 상수는 상대 import로 가져옵니다.
+
+```python
+from ..constants import COMMON_HISTORY_FILE_ID, NAVER_CATEGORY_IDS
+# 여러 채널에서 같은 시드 키워드를 쓰면:
+# from ..constants import DEFAULT_TREND_KEYWORDS
+```
+
+네이버 카테고리는 **이름 → ID** 맵이 `constants.NAVER_CATEGORY_IDS`에 정의되어 있습니다.  
+예: `NAVER_CATEGORY_IDS["스포츠/레저"]`, `NAVER_CATEGORY_IDS["화장품/미용"]`  
+새 카테고리가 필요하면 `constants.py`의 dict에 한 줄 추가합니다.
+
+참고 구현: `app/admin/ops/channels/roster/soccer.py`
+
+### 3. registry에 등록
+
+`app/admin/ops/channels/registry.py`를 열고:
+
+1. `from .roster import soccer` 처럼 **새 모듈을 import**합니다.
+2. `CHANNEL_BUILDERS` 튜플에 **`새모듈.build`** 를 원하는 순서로 추가합니다.
+
+```python
+from .roster import soccer, my_channel
+
+CHANNEL_BUILDERS: tuple[ChannelBuilder, ...] = (
+    soccer.build,
+    my_channel.build,
+)
+```
+
+순서가 곧 `CHANNELS` 리스트 순서이며, 기본 채널 선택 UI가 있다면 첫 항목이 의미 있을 수 있습니다.
+
+### 4. 환경 변수 (.env)
+
+채널별 시트 ID 등은 코드에 박지 말고 **`.env`**에서 읽는 패턴을 권장합니다.
+
+- 스프레드시트 ID: `CHANNEL_{CHANNEL_ID}_FILE_ID` (`channel_id` 는 `env_names` 규칙으로 대문자·하이픈→밑줄)  
+  - 예: `201` → `CHANNEL_201_FILE_ID` (`channel_env("201", "FILE_ID")` 와 동일)
+- 탭 이름(선택): `CHANNEL_201_TAB`, `CHANNEL_201_HISTORY_TAB` 등
+- 상품 전달 웹앱(선택): `CHANNEL_201_PRODUCT_DELIVERY_WEBAPP_URL` — 시트 전송 성공 후 POST
+- 몰 GET(선택): `CHANNEL_201_MALL_PRODUCTS_API_URL`, `CHANNEL_201_MALL_PRODUCTS_CHANNEL_PARAM`, `CHANNEL_201_MALL_INFLUENCER_SLUG` — 의미는 위 표와 [`.env.example`](../.env.example) 주석 참고
+
+`102` 채널처럼 실제 운영값을 넣을 때는 아래처럼 맞추면 됩니다.
+
+
+```
+
+**로딩 방식:** `main.py` 모듈 import 직후 **`_load_env_file()`** 가 프로젝트 루트 `.env`를 `dotenv_values`로 읽고, **`os.environ`에 해당 키가 없거나 값이 공백뿐일 때만** 덮어씁니다.  
+→ 셸/IDE에 `CHANNEL_201_FILE_ID=` 처럼 **빈 문자열로 export**되어 있어도, `.env`의 실제 값이 채워지도록 완화됩니다.
+
+키 이름 전체는 루트 **[`.env.example`](../.env.example)** 를 참고하면 된다(`cp .env.example .env` 후 편집).
+
+공통 기록 시트는 `COMMON_HISTORY_FILE_ID`를 사용합니다.
+
+### 4.5 공개 홈·몰용 `influencers` (SQLite)
+
+채널 정의는 DB가 아니라 roster·`.env` 이다. 홈 카드·`/{name_slug}` 몰은 **`influencers`** 행을 본다. 새 `channel_id`(예: 105, 106)를 넣은 뒤:
+
+```bash
+.venv/bin/python scripts/setup_sqlite_from_roster.py 105 106
+```
+
+인자를 생략하면 `MALL_INFLUENCER_SLUG` 가 비어 있지 않은 **로스터 채널 전부**에 대해 시드한다. 예전 `database.db` 스키마 보정도 이 스크립트가 담당한다.
+
+### 5. 동작 확인
+
+```bash
+cd /path/to/shortcrew
+.venv/bin/python -c "from app.admin.ops.channels import CHANNELS; print([c['channel_id'] for c in CHANNELS])"
+```
+
+기대한 `channel_id`가 출력되면 등록이 반영된 것입니다.
+
+Ops API는 `main.py`에서 `prefix="/admin/api/ops"` 로 마운트되어 있습니다.  
+예: `GET /admin/api/ops/channels/{channel_id}/settings` — 세부 라우트는 `app/admin/ops/api_router.py`를 확인하세요.
+
+## 자주 묻는 것
+
+- **여러 채널이 같은 시트를 쓰면?**  
+  각 `build()`에서 같은 `google_sheet_id` 값을 반환하면 됩니다. `channel_id`만 다르면 API·설정은 채널별로 분리됩니다.
+
+- **트렌드 키워드를 전 채널 공통으로 쓰면?**  
+  `from ..constants import DEFAULT_TREND_KEYWORDS` 후 `trend_keywords: list(DEFAULT_TREND_KEYWORDS)` 처럼 복사해 쓰면 됩니다.
+
+- **roster 패키지 이름을 바꾸면?**  
+  `registry.py`의 import 경로와 이 문서의 경로만 같이 수정하면 됩니다.
+
+- **시트 딥링크·몰 링크는 어디서 맞추나?**  
+  채널·인플 DB·`PUBLIC_SITE_URL` 조합은 `mall_tracking`과 시트 라우트에서 처리합니다. 상세는 [02](02_SHEETS_DEEPLINK_PREVIEW.md), [03](03_PUBLIC_SHOP_AND_PARTNERS_LINKS.md)를 본다.

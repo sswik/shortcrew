@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}일시적인 오류 | 숏크루{% endblock %}
+
+{% block main_extra_class %} page-body--error{% endblock %}
+
+{% block content %}
+<section class="error-page" aria-labelledby="error-page-title">
+    <p class="error-page__code" aria-hidden="true">500</p>
+    <h1 id="error-page-title" class="error-page__title">일시적인 오류가 발생했습니다</h1>
+    <p class="error-page__message">{{ message }}</p>
+    <div class="error-page__actions">
+        <a class="btn btn-primary" href="/">홈으로 가기</a>
+        <button type="button" class="btn btn-outline" onclick="window.location.reload()">다시 시도</button>
+    </div>
+</section>
+{% endblock %}
