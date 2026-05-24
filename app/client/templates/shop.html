@@ -3,6 +3,10 @@
 
 {% block title %}{{ influencer.display_name }} | 숏크루{% endblock %}
 
+{% block head_theme %}
+{% if mall_theme_style_tag %}{{ mall_theme_style_tag | safe }}{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="shop-page">
 {% if influencer.cover_image %}
@@ -30,7 +34,7 @@
 <div class="shop-tabs" data-shop-tabs data-shop-public-slug="{{ influencer.name_slug | e }}" data-initial-tab="{{ ht | e }}">
     <div class="shop-tabs__list" role="tablist" aria-label="몰 메뉴">
         <a class="shop-tabs__tab" role="tab" id="shop-tab-products" data-shop-tab="products" href="/{{ influencer.name_slug }}" aria-controls="shop-panel-products" aria-selected="{{ 'true' if ht == 'products' else 'false' }}" {% if ht != 'products' %}tabindex="-1"{% endif %}>상품</a>
-        <a class="shop-tabs__tab" role="tab" id="shop-tab-reviews" data-shop-tab="reviews" href="/{{ influencer.name_slug }}/review" aria-controls="shop-panel-reviews" aria-selected="{{ 'true' if ht == 'reviews' else 'false' }}" {% if ht != 'reviews' %}tabindex="-1"{% endif %}>인플루언서 사용후기</a>
+        <a class="shop-tabs__tab" role="tab" id="shop-tab-reviews" data-shop-tab="reviews" href="/{{ influencer.name_slug }}/review" aria-controls="shop-panel-reviews" aria-selected="{{ 'true' if ht == 'reviews' else 'false' }}" {% if ht != 'reviews' %}tabindex="-1"{% endif %}>포스트</a>
         <a class="shop-tabs__tab" role="tab" id="shop-tab-channel" data-shop-tab="channel" href="/{{ influencer.name_slug }}/introduce" aria-controls="shop-panel-channel" aria-selected="{{ 'true' if ht == 'channel' else 'false' }}" {% if ht != 'channel' %}tabindex="-1"{% endif %}>소개</a>
     </div>
 </div>
@@ -39,6 +43,8 @@
 
 <section class="shop-tab-panel" id="shop-panel-products" data-shop-panel="products" role="tabpanel" aria-labelledby="shop-tab-products" {% if ht != 'products' %}hidden{% endif %}>
     <script id="shop-page-config" type="application/json">{{ shop_page_config | tojson }}</script>
+    <label class="visually-hidden" for="shop-product-search">상품 검색</label>
+    <input type="search" id="shop-product-search" class="shop-product-search" placeholder="상품명 검색" autocomplete="off" />
     <div id="shop-product-categories" class="shop-product-categories" role="group" aria-label="상품 카테고리" hidden></div>
     <div id="shop-product-root" class="card-grid" aria-busy="true">
         <p class="muted" id="shop-loading">상품을 불러오는 중…</p>
@@ -48,7 +54,7 @@
 
 <section class="shop-tab-panel" id="shop-panel-reviews" data-shop-panel="reviews" role="tabpanel" aria-labelledby="shop-tab-reviews" {% if ht != 'reviews' %}hidden{% endif %}>
     <div class="shop-panel-lead shop-panel-lead--reviews">
-        <h2 class="shop-panel-lead__title" id="shop-panel-reviews-title">인플루언서 사용후기</h2>
+        <h2 class="shop-panel-lead__title" id="shop-panel-reviews-title">포스트</h2>
     </div>
     <div class="review-board" aria-labelledby="shop-panel-reviews-title">
         {% for review in reviews %}
@@ -60,7 +66,7 @@
             <span class="review-board__arrow">보기</span>
         </a>
         {% else %}
-        <p class="muted">등록된 리뷰가 없습니다.</p>
+        <p class="muted">등록된 포스트가 없습니다.</p>
         {% endfor %}
     </div>
 </section>

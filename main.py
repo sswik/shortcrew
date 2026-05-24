@@ -35,6 +35,19 @@ def _load_env_file() -> None:
 
 _load_env_file()
 
+
+def _normalize_site_base(url: str) -> str:
+    """`PUBLIC_SITE_URL` 등 — 스킴 없는 호스트·`//` 형태를 절대 URL로."""
+    url = (url or "").strip().rstrip("/")
+    if not url:
+        return ""
+    if url.startswith("//"):
+        return "https:" + url
+    if not url.startswith(("http://", "https://")):
+        return "https://" + url.lstrip("/")
+    return url
+
+
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Query, Request
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -58,6 +71,16 @@ from app.admin.auth import (
 )
 from app.admin.ops.api_router import router as ops_api_router
 from app.client.mall_sheet import resolve_mall_products_api
+from app.client.profile_display import format_cue_card_tagline
+from app.client.mall_theme import (
+    get_mall_theme,
+    parse_profile_meta_json,
+    theme_to_css_vars,
+    theme_to_root_style,
+    theme_to_style_tag,
+    validate_mall_theme_json,
+    validate_profile_meta_json,
+)
 from app.admin.ops.services.admin_review_products import (
     load_review_form_products,
     merge_saved_sheet_option_into_product_list,
@@ -164,6 +187,25 @@ def _log_review_admin_persist(*, event: str, review: Review) -> None:
 
 app = FastAPI(title="숏크루")
 app.include_router(ops_api_router, prefix="/admin/api/ops", tags=["admin-ops"])
+
+_WWW_REDIRECT_HOST = "www.shortcrew.co.kr"
+_APEX_PUBLIC_HOST = "shortcrew.co.kr"
+
+
+@app.middleware("http")
+async def redirect_www_to_apex(request: Request, call_next):
+    """`www.shortcrew.co.kr` → `https://shortcrew.co.kr` (경로·쿼리 유지, 301)."""
+    host = (request.url.hostname or "").strip().lower()
+    if host == _WWW_REDIRECT_HOST:
+        path = request.url.path or "/"
+        query = request.url.query
+        target = f"https://{_APEX_PUBLIC_HOST}{path}"
+        if query:
+            target += f"?{query}"
+        return RedirectResponse(url=target, status_code=301)
+    return await call_next(request)
+
+
 app.add_middleware(AccessDetailLogMiddleware)
 
 Base.metadata.create_all(bind=engine)
@@ -191,6 +233,39 @@ def _ensure_click_log_schema() -> None:
 
 
 _ensure_click_log_schema()
+
+
+def _ensure_influencer_v2_columns() -> None:
+    """SQLite: profile_meta_json, mall_theme_json for ShortCrew V2."""
+    with engine.begin() as conn:
+        cols = {
+            str(row[1]).strip().lower()
+            for row in conn.execute(text("PRAGMA table_info(influencers)")).fetchall()
+        }
+        if not cols:
+            return
+        if "profile_meta_json" not in cols:
+            conn.execute(text("ALTER TABLE influencers ADD COLUMN profile_meta_json TEXT"))
+        if "mall_theme_json" not in cols:
+            conn.execute(text("ALTER TABLE influencers ADD COLUMN mall_theme_json TEXT"))
+
+
+_ensure_influencer_v2_columns()
+
+
+def _client_theme_context(influencer: Influencer | None = None) -> dict[str, object]:
+    """Jinja context: mall theme CSS vars + parsed profile meta."""
+    theme = get_mall_theme(influencer)
+    meta = parse_profile_meta_json(
+        getattr(influencer, "profile_meta_json", None) if influencer else None
+    )
+    return {
+        "mall_theme": theme,
+        "mall_theme_css": theme_to_css_vars(theme),
+        "mall_theme_root_style": theme_to_root_style(theme),
+        "mall_theme_style_tag": theme_to_style_tag(theme),
+        "profile_meta": meta,
+    }
 
 
 def _ua_os_browser(ua: str | None) -> tuple[str, str]:
@@ -308,25 +383,18 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     if _request_wants_json_error(request):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     if exc.status_code == 404:
-        return templates.TemplateResponse(
-            request,
-            "errors/404.html",
-            {"message": _friendly_404_message(_http_exception_detail_text(exc))},
-            status_code=404,
-        )
+        ctx = _client_theme_context()
+        ctx["message"] = _friendly_404_message(_http_exception_detail_text(exc))
+        return templates.TemplateResponse(request, "errors/404.html", ctx, status_code=404)
     if exc.status_code >= 500:
+        ctx = _client_theme_context()
+        ctx["message"] = _http_exception_detail_text(exc) or _DEFAULT_500_MESSAGE
         return templates.TemplateResponse(
-            request,
-            "errors/500.html",
-            {"message": _http_exception_detail_text(exc) or _DEFAULT_500_MESSAGE},
-            status_code=exc.status_code,
+            request, "errors/500.html", ctx, status_code=exc.status_code
         )
-    return templates.TemplateResponse(
-        request,
-        "errors/404.html",
-        {"message": _http_exception_detail_text(exc) or _DEFAULT_404_MESSAGE},
-        status_code=exc.status_code,
-    )
+    ctx = _client_theme_context()
+    ctx["message"] = _http_exception_detail_text(exc) or _DEFAULT_404_MESSAGE
+    return templates.TemplateResponse(request, "errors/404.html", ctx, status_code=exc.status_code)
 
 
 @app.exception_handler(Exception)
@@ -334,12 +402,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> Respo
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     if _request_wants_json_error(request):
         return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
-    return templates.TemplateResponse(
-        request,
-        "errors/500.html",
-        {"message": _DEFAULT_500_MESSAGE},
-        status_code=500,
-    )
+    ctx = _client_theme_context()
+    ctx["message"] = _DEFAULT_500_MESSAGE
+    return templates.TemplateResponse(request, "errors/500.html", ctx, status_code=500)
 
 
 @app.exception_handler(AdminAuthRedirect)
@@ -368,16 +433,25 @@ def health() -> dict[str, str]:
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     influencers = db.scalars(select(Influencer).order_by(Influencer.display_name)).all()
-    return templates.TemplateResponse(
-        request,
-        "home.html",
-        {"influencers": influencers},
-    )
+    ctx = _client_theme_context()
+    ctx["influencers"] = influencers
+    ctx["influencers_profile_meta"] = {
+        inf.name_slug: parse_profile_meta_json(inf.profile_meta_json) for inf in influencers
+    }
+    ctx["influencers_cue_tagline"] = {
+        inf.name_slug: format_cue_card_tagline(
+            inf.display_name,
+            inf.name_slug,
+            ctx["influencers_profile_meta"].get(inf.name_slug),
+        )
+        for inf in influencers
+    }
+    return templates.TemplateResponse(request, "home.html", ctx)
 
 
 @app.get("/about", response_class=HTMLResponse)
 def about_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "about.html", {})
+    return templates.TemplateResponse(request, "about.html", _client_theme_context())
 
 
 @app.get("/shop/{path_slug}", response_class=HTMLResponse, response_model=None)
@@ -878,10 +952,23 @@ def admin_influencer_edit_get(
     inf = db.scalar(select(Influencer).where(Influencer.name_slug == name_slug))
     if inf is None:
         raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
+
+    def _pretty_json(raw: str | None) -> str:
+        if not raw or not str(raw).strip():
+            return ""
+        try:
+            return json.dumps(json.loads(raw), ensure_ascii=False, indent=2)
+        except json.JSONDecodeError:
+            return str(raw)
+
     return templates.TemplateResponse(
         request,
         "influencer_edit.html",
-        {"influencer": inf},
+        {
+            "influencer": inf,
+            "profile_meta_json_text": _pretty_json(inf.profile_meta_json),
+            "mall_theme_json_text": _pretty_json(inf.mall_theme_json),
+        },
     )
 
 
@@ -897,10 +984,18 @@ def admin_influencer_edit_post(
     instagram_url: str = Form(""),
     tiktok_url: str = Form(""),
     cover_image: str = Form(""),
+    profile_meta_json: str = Form(""),
+    mall_theme_json: str = Form(""),
 ) -> RedirectResponse:
     inf = db.scalar(select(Influencer).where(Influencer.name_slug == name_slug))
     if inf is None:
         raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
+    meta_parsed, meta_err = validate_profile_meta_json(profile_meta_json)
+    if meta_err:
+        raise HTTPException(status_code=400, detail=meta_err)
+    theme_parsed, theme_err = validate_mall_theme_json(mall_theme_json)
+    if theme_err:
+        raise HTTPException(status_code=400, detail=theme_err)
     inf.display_name = display_name.strip()
     inf.profile_image = (profile_image or "").strip()
     inf.bio = (bio or "").strip() or None
@@ -908,6 +1003,8 @@ def admin_influencer_edit_post(
     inf.instagram_url = (instagram_url or "").strip()
     inf.tiktok_url = (tiktok_url or "").strip()
     inf.cover_image = (cover_image or "").strip()
+    inf.profile_meta_json = json.dumps(meta_parsed, ensure_ascii=False) if meta_parsed else None
+    inf.mall_theme_json = json.dumps(theme_parsed, ensure_ascii=False) if theme_parsed else None
     db.commit()
     return RedirectResponse(url="/admin/influencers", status_code=303)
 
@@ -1093,7 +1190,7 @@ def _influencer_hub_page(
         worker = _DEFAULT_COUPANG_IMAGE_WORKER.strip().rstrip("/")
     mall_fetch_url = ""
     if mall_api_url and mall_channel_id:
-        public_base = (os.environ.get("PUBLIC_SITE_URL") or "").strip().rstrip("/")
+        public_base = _normalize_site_base(os.environ.get("PUBLIC_SITE_URL") or "")
         if not public_base:
             public_base = str(request.base_url).rstrip("/")
         mall_fetch_url = f"{public_base}/api/mall-products?channel_id={quote(mall_channel_id, safe='')}"
@@ -1114,16 +1211,16 @@ def _influencer_hub_page(
         .where(Review.influencer_slug == name_slug)
         .order_by(Review.created_at.desc())
     ).all()
-    return templates.TemplateResponse(
-        request,
-        "shop.html",
+    ctx = _client_theme_context(influencer)
+    ctx.update(
         {
             "influencer": influencer,
             "shop_page_config": shop_page_config,
             "reviews": reviews,
             "hub_tab": hub_tab,
-        },
+        }
     )
+    return templates.TemplateResponse(request, "shop.html", ctx)
 
 
 @app.get("/{name_slug}/review/{review_id:int}", response_class=HTMLResponse)
@@ -1174,17 +1271,17 @@ def public_review_detail(
         "yes" if shorts_deeplink else "no",
         "yes" if buy_url else "no",
     )
-    return templates.TemplateResponse(
-        request,
-        "review_detail.html",
+    ctx = _client_theme_context(influencer)
+    ctx.update(
         {
             "influencer": influencer,
             "review": review,
             "buy_url": buy_url,
             "review_body_html": review_body_html,
             "shorts_deeplink": shorts_deeplink,
-        },
+        }
     )
+    return templates.TemplateResponse(request, "review_detail.html", ctx)
 
 
 @app.get("/{name_slug}/review", response_class=HTMLResponse)

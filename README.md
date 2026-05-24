@@ -7,7 +7,7 @@
 - FastAPI
 - SQLAlchemy + SQLite
 - Jinja2 Templates
-- 정적 자산(`static/`) + 공통 테마(`#6200EA`)
+- 정적 자산(`static/`) + ShortCrew V2 테마 (다크 `#121212`, 시안 `#00C2D1`, 앰버 CTA `#FFB800`)
 - Docker + Cloudflare Tunnel
 
 ## 현재 구조

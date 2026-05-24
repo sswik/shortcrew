@@ -1,55 +1,110 @@
 {% extends "base.html" %}
 
-{% block title %}숏크루{% endblock %}
+{% block title %}숏크루 — AI 인플루언서 크루{% endblock %}
 
 {% block content %}
 <section class="hero hero--dense">
     <div class="hero-brand">
-        <img class="mall-profile" src="/static/images/mall/logo.png" alt="숏크루 메인 프로필">
+        <img class="mall-profile" src="/static/images/brand/logo.png" alt="숏크루">
         <div>
-            <h1>Short + Crew</h1>
-            <p class="hero-tagline">함께 만드는 큐레이션, 당신의 일상을 채워줄 30인의 AI 인플루언서, <strong>숏크루</strong></p>
-            <p class="hero-sub muted">AI 인플루언서가 고른 아이템으로, 쇼핑 시간은 줄이고 일상은 채웁니다.</p>
+            <h1>숏크루</h1>
+            <p class="hero-tagline">AI 인플루언서가 하나의 크루처럼 — <strong>스포티 &amp; 테크</strong> 팬덤 플랫폼</p>
+            <p class="hero-sub">큐레이션으로 쇼핑 시간은 줄이고, 일상은 채웁니다.</p>
         </div>
     </div>
 </section>
 
 <section id="creators" class="home-creators">
-    <h2 class="section-title">인플루언서</h2>
-    <div class="creator-rank-list">
+    <h2 class="section-title">크루 라인업</h2>
+    <div class="creator-rank-list cue-card-deck">
         {% for influencer in influencers %}
-        <article class="creator-rank-card">
-            <img class="creator-rank-card__avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
-            <div class="creator-rank-card__body">
-                <h3 class="creator-rank-card__title">{{ influencer.display_name }}</h3>
-                <p class="creator-rank-card__slug muted">@{{ influencer.name_slug }}</p>
-                <p class="creator-rank-card__bio muted">{{ influencer.display_name }}입니다.</p>
+        {% set meta = influencers_profile_meta.get(influencer.name_slug, {}) %}
+        {% set intro_bio = (influencer.bio or '') | trim %}
+        <article class="cue-card creator-rank-card">
+            <div class="cue-card__head">
+                <img class="creator-rank-card__avatar cue-card__avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
+                <div class="creator-rank-card__body cue-card__body">
+                    <h3 class="creator-rank-card__title cue-card__title">{{ influencer.display_name }}</h3>
+                    <p class="creator-rank-card__slug muted">@{{ influencer.name_slug }}</p>
+                    {% if meta.mbti %}
+                    <span class="cue-card__badge">{{ meta.mbti }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="creator-rank-card__cta-row" role="group" aria-label="SNS 및 몰">
+            <p class="creator-rank-card__bio cue-card__bio muted">{{ influencers_cue_tagline.get(influencer.name_slug, '') }}</p>
+            <template class="cue-card__intro-source" id="cue-intro-{{ influencer.name_slug }}">{{ intro_bio or '채널 소개를 준비 중입니다.' }}</template>
+            <div class="creator-rank-card__cta-row cue-card__cta-row" role="group" aria-label="소개·몰·SNS">
+                <button type="button" class="cue-card__pill cue-card__pill--intro"
+                        data-intro-slug="{{ influencer.name_slug | e }}"
+                        data-intro-name="{{ influencer.display_name | e }}">소개</button>
+                <a class="cue-card__pill cue-card__pill--shop" href="/{{ influencer.name_slug }}">쇼핑몰</a>
                 {% if influencer.youtube_url %}
-                <a class="creator-rank-card__sns-btn" href="{{ influencer.youtube_url }}" target="_blank" rel="noopener noreferrer" aria-label="유튜브" title="유튜브">
-                    <i class="fa-brands fa-youtube" aria-hidden="true"></i>
-                </a>
+                <a class="cue-card__pill cue-card__pill--sns" href="{{ influencer.youtube_url }}" target="_blank" rel="noopener noreferrer">유튜브</a>
+                {% else %}
+                <span class="cue-card__pill cue-card__pill--sns is-disabled" aria-disabled="true">유튜브</span>
                 {% endif %}
                 {% if influencer.instagram_url %}
-                <a class="creator-rank-card__sns-btn" href="{{ influencer.instagram_url }}" target="_blank" rel="noopener noreferrer" aria-label="인스타그램" title="인스타그램">
-                    <i class="fa-brands fa-instagram" aria-hidden="true"></i>
-                </a>
+                <a class="cue-card__pill cue-card__pill--sns" href="{{ influencer.instagram_url }}" target="_blank" rel="noopener noreferrer">인스타그램</a>
+                {% else %}
+                <span class="cue-card__pill cue-card__pill--sns is-disabled" aria-disabled="true">인스타그램</span>
                 {% endif %}
                 {% if influencer.tiktok_url %}
-                <a class="creator-rank-card__sns-btn" href="{{ influencer.tiktok_url }}" target="_blank" rel="noopener noreferrer" aria-label="틱톡" title="틱톡">
-                    <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
-                </a>
+                <a class="cue-card__pill cue-card__pill--sns" href="{{ influencer.tiktok_url }}" target="_blank" rel="noopener noreferrer">틱톡</a>
+                {% else %}
+                <span class="cue-card__pill cue-card__pill--sns is-disabled" aria-disabled="true">틱톡</span>
                 {% endif %}
-                <a class="creator-rank-card__shop-btn" href="/{{ influencer.name_slug }}">
-                    <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
-                    쇼핑몰 가기
-                </a>
             </div>
         </article>
         {% else %}
-        <p class="muted">등록된 인플루언서가 없습니다.</p>
+        <p class="muted">등록된 크루가 없습니다.</p>
         {% endfor %}
     </div>
 </section>
+
+<dialog id="crew-intro-dialog" class="crew-intro-dialog" aria-labelledby="crew-intro-dialog-title">
+    <div class="crew-intro-dialog__panel">
+        <button type="button" class="crew-intro-dialog__close" aria-label="닫기">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <h2 id="crew-intro-dialog-title" class="crew-intro-dialog__title"></h2>
+        <div id="crew-intro-dialog-body" class="crew-intro-dialog__body"></div>
+    </div>
+</dialog>
+
+<script>
+(function () {
+    var dialog = document.getElementById("crew-intro-dialog");
+    var titleEl = document.getElementById("crew-intro-dialog-title");
+    var bodyEl = document.getElementById("crew-intro-dialog-body");
+    if (!dialog || !titleEl || !bodyEl) return;
+
+    function openIntro(slug, name) {
+        var tpl = document.getElementById("cue-intro-" + slug);
+        var text = tpl && tpl.content ? tpl.content.textContent.trim() : "";
+        if (!text) text = "채널 소개를 준비 중입니다.";
+        titleEl.textContent = (name || "") + " 소개";
+        bodyEl.textContent = text;
+        if (typeof dialog.showModal === "function") {
+            dialog.showModal();
+        }
+    }
+
+    function closeIntro() {
+        if (dialog.open) dialog.close();
+    }
+
+    document.querySelectorAll(".cue-card__pill--intro").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            openIntro(btn.getAttribute("data-intro-slug") || "", btn.getAttribute("data-intro-name") || "");
+        });
+    });
+
+    var closeBtn = dialog.querySelector(".crew-intro-dialog__close");
+    if (closeBtn) closeBtn.addEventListener("click", closeIntro);
+    dialog.addEventListener("cancel", closeIntro);
+    dialog.addEventListener("click", function (e) {
+        if (e.target === dialog) closeIntro();
+    });
+})();
+</script>
 {% endblock %}

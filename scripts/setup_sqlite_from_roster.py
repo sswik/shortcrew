@@ -112,6 +112,10 @@ def migrate_sqlite_schema() -> None:
                 conn.execute(text("ALTER TABLE influencers ADD COLUMN tiktok_url VARCHAR(500) DEFAULT ''"))
             if "cover_image" not in cols:
                 conn.execute(text("ALTER TABLE influencers ADD COLUMN cover_image VARCHAR(500) DEFAULT ''"))
+            if "profile_meta_json" not in cols:
+                conn.execute(text("ALTER TABLE influencers ADD COLUMN profile_meta_json TEXT"))
+            if "mall_theme_json" not in cols:
+                conn.execute(text("ALTER TABLE influencers ADD COLUMN mall_theme_json TEXT"))
 
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(reviews)")).fetchall()}
         if cols and "source_youtube_video_id" not in cols:

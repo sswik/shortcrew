@@ -5,41 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>{% block title %}관리자 | 숏크루{% endblock %}</title>
-    <link rel="icon" type="image/png" href="/static/images/mall/logo.png">
+    <link rel="icon" type="image/png" href="/static/images/brand/logo.png">
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    screens: {
-                        tablet: '1024px',
-                        desktop: '1280px',
-                    },
-                    fontFamily: {
-                        sans: ['Pretendard', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-                    },
-                    colors: {
-                        primary: {
-                            DEFAULT: '#6200ea',
-                            50: '#ede3ff',
-                            100: '#d4bff9',
-                            200: '#b794f6',
-                            300: '#9969f0',
-                            400: '#7c3aed',
-                            500: '#6200ea',
-                            600: '#5a00d4',
-                            700: '#4a00ad',
-                            800: '#3b008c',
-                            900: '#2d0066',
-                        },
-                    },
-                },
-            },
-        };
-    </script>
+    {% include "_admin_tailwind_config.html" %}
     <style>
         .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.28) transparent; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -67,7 +37,7 @@
         >
             <div class="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-3 lg:px-4 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2">
                 <a href="/admin/dashboard" class="flex min-w-0 items-center gap-2.5 text-white hover:text-primary-50 lg:group-data-[collapsed=true]/sidebar:hidden">
-                    <img src="/static/images/mall/logo.png" alt="" class="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-white/20" width="32" height="32">
+                    <img src="/static/images/brand/logo.png" alt="" class="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-white/20" width="32" height="32">
                     <span class="sidebar-text truncate text-base font-bold tracking-tight lg:group-data-[collapsed=true]/sidebar:sr-only">숏크루</span>
                 </a>
                 <button

@@ -27,6 +27,8 @@ class Influencer(Base):
     instagram_url: Mapped[str] = mapped_column(String(500), default="")
     tiktok_url: Mapped[str] = mapped_column(String(500), default="")
     cover_image: Mapped[str] = mapped_column(String(500), default="")
+    profile_meta_json: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    mall_theme_json: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
 
     products: Mapped[list["Product"]] = relationship(back_populates="influencer")
     reviews: Mapped[list["Review"]] = relationship(back_populates="influencer")

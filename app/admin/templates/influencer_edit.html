@@ -4,7 +4,7 @@
 {% block page_heading %}인플루언서 정보 편집하기{% endblock %}
 
 {% block content %}
-<p class="mb-6 text-sm text-slate-600">공개 몰·홈 카드에 표시되는 프로필 정보를 수정합니다. 슬러그(<code class="rounded bg-slate-100 px-1">{{ influencer.name_slug }}</code>)는 변경할 수 없습니다.</p>
+<p class="mb-6 text-sm text-slate-600">공개 몰·홈 큐카드에 표시되는 프로필 정보를 수정합니다. 슬러그(<code class="rounded bg-slate-100 px-1">{{ influencer.name_slug }}</code>)는 변경할 수 없습니다.</p>
 
 <form method="post" action="/admin/influencers/{{ influencer.name_slug }}/edit" class="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
     <div>
@@ -25,6 +25,18 @@
     <div>
         <label class="mb-1 block text-sm font-semibold text-slate-700" for="bio">소개 (홈·채널소개)</label>
         <textarea id="bio" name="bio" rows="4" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">{{ influencer.bio or '' }}</textarea>
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="profile_meta_json">프로필 메타 JSON</label>
+        <textarea id="profile_meta_json" name="profile_meta_json" rows="5" class="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
+                  placeholder='{"mbti":"ENFP","category":"golf","fandom_name":"..."}'>{{ profile_meta_json_text }}</textarea>
+        <p class="mt-1 text-xs text-slate-500">MBTI·분야(<code>category</code>: golf→골프 등)·팬덤명. 비우면 표시이름 괄호·슬러그로 분야 추론.</p>
+    </div>
+    <div>
+        <label class="mb-1 block text-sm font-semibold text-slate-700" for="mall_theme_json">몰 테마 JSON (HEX)</label>
+        <textarea id="mall_theme_json" name="mall_theme_json" rows="6" class="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
+                  placeholder='{"background":"#121212","card":"#1E1E1E","accent":"#00C2D1","textMain":"#FFFFFF","textSub":"#A3A3A3","border":"#2E2E2E"}'>{{ mall_theme_json_text }}</textarea>
+        <p class="mt-1 text-xs text-slate-500">비우면 숏크루 V2 기본 다크 팔레트가 적용됩니다.</p>
     </div>
     <div>
         <label class="mb-1 block text-sm font-semibold text-slate-700" for="youtube_url">유튜브 URL</label>

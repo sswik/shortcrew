@@ -1,43 +1,55 @@
 # 04 — 관리자 UI·환경 로딩·SQLite 마이그레이션
 
-백오피스 소소한 UX와 **로컬 DB 스키마 보정**, **타입/분석기** 정리.
+백오피스 UX, **로컬 DB 스키마 보정**, 타입/분석기, **ShortCrew V2 admin 테마** 정리.
 
-## `app/admin/templates/products.html` + `static/js/admin-products.js`
+## ShortCrew V2 — Admin Tailwind
 
-- **「목록 새로고침」** 버튼: 선택 채널의 등록 상품 표만 `loadRegisteredItems()` 재호출 (페이지 전체 새로고침 없음).
-- `loadRegisteredItems()`는 **`Promise<boolean>`** 반환 — 수동 새로고침 성공 시에만 성공 모달.
+- [_admin_tailwind_config.html](../app/admin/templates/_admin_tailwind_config.html): **진한 하늘색 primary** (`#0369a1` 기준 50–900), 다크 surface·앰버 보조
+- [layout.html](../app/admin/templates/layout.html), [login.html](../app/admin/templates/login.html): 인라인 `tailwind.config` 제거 → `{% include "_admin_tailwind_config.html" %}`
+- favicon: `/static/images/brand/logo.png`
+
+## 인플루언서 편집 (`influencer_edit.html`)
+
+- `profile_meta_json` — MBTI·카테고리·팬덤명 등 (JSON 객체, 서버 `validate_profile_meta_json`)
+- `mall_theme_json` — HEX 키 (`background`, `card`, `accent`, `textMain`, `textSub`, `border`, …). 비우면 공개 몰 fallback
+- POST [main.py](../main.py) `admin_influencer_edit_post`
+
+## SQLite — Influencer V2 컬럼
+
+- `main.py` `_ensure_influencer_v2_columns()`: `profile_meta_json`, `mall_theme_json` (`ALTER TABLE`)
+- [scripts/setup_sqlite_from_roster.py](../scripts/setup_sqlite_from_roster.py): 동일 컬럼 보정 + 로스터 시드
+
+기존 컬럼(`bio`, SNS URL, `cover_image`, `shop_path_slug`) 보정 로직은 스크립트에 유지.
+
+---
+
+## `products.html` + `admin-products.js`
+
+- **「목록 새로고침」**: 선택 채널 등록 상품 표만 `loadRegisteredItems()` 재호출
+- `loadRegisteredItems()` → `Promise<boolean>`
 
 ## `main.py` — 환경 변수
 
-- **`_load_env_file()`**: `dotenv_values`로 `.env`를 읽고, **현재 `os.environ` 값이 비어 있을 때만** 키를 채움.  
-  → 셸/IDE에 빈 `CHANNEL_201_FILE_ID=`만 있어 `.env`가 무시되던 문제 완화.
-
-## SQLite 보정·인플 시드 (스크립트)
-
-- [`scripts/setup_sqlite_from_roster.py`](../scripts/setup_sqlite_from_roster.py): 예전 DB 스키마 보정(`reviews.product_id`, `click_logs`·`influencers` 컬럼 등) + `Base.metadata.create_all` + 로스터 기준 `influencers` 시드. 배포·로컬에서 예전 `database.db`를 쓸 때 **서버 기동 전에 한 번** 실행.
-- `main.py` 는 `create_all` 만 한다.
+- **`_load_env_file()`**: `dotenv_values`로 `.env` 읽기. **현재 `os.environ` 값이 비어 있을 때만** 채움
 
 ## `models.py`
 
-- `Review.product_id`: **`Mapped[int | None]`** (`nullable=True`와 일치). `product` 관계는 `Product | None`.
+- `Review.product_id`: `Mapped[int | None]` (`nullable=True`)
 
 ## `main.py` — `get_db`
 
-- 반환 타입 **`Generator[Session, None, None]`** (`yield`와 Pyright 일치).
+- 반환 타입 **`Generator[Session, None, None]`**
 
 ## 클릭 로그 (`/admin/logs`)
 
-- `click_logs`에 아래 스냅샷 컬럼이 추가되며, 서버 기동 시 `main.py`의 `_ensure_click_log_schema()`가 구버전 DB를 보정한다.
-  - `client_user_agent` (`VARCHAR(512)`)
-  - `page_url` (`VARCHAR(800)`)
-  - `referrer_snapshot` (`VARCHAR(600)`)
-- `POST /api/click`은 위 값을 선택적으로 받아 저장한다.
-- `/admin/logs`는 페이지 URL·유입(referrer)·OS·브라우저를 함께 표시한다.
+- `click_logs` 스냅샷: `client_user_agent`, `page_url`, `referrer_snapshot` — `_ensure_click_log_schema()`
+- `POST /api/click` 저장, `/admin/logs` 표시
 
 ## 기타
 
-- 루트 [`pyrightconfig.json`](../pyrightconfig.json): include·venv 경로 (선택).
+- [pyrightconfig.json](../pyrightconfig.json): include·venv (선택)
 
 ## 연계
 
-- 클릭 로그 API: `POST /api/click` — `product_id` 스냅샷과 함께 `client_user_agent`/`page_url`/`referrer_snapshot`을 저장한다.
+- 공개 UI V2: [08_CLIENT_UI_REBRAND.md](08_CLIENT_UI_REBRAND.md), [05_CLIENT_UI_OVERHAUL.md](05_CLIENT_UI_OVERHAUL.md)
+- 클릭 API: `POST /api/click`

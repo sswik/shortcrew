@@ -23,6 +23,34 @@ class TestSmoke(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json().get("status"), "ok")
 
+    def test_www_host_redirects_to_apex(self) -> None:
+        r = self.client.get(
+            "/golf",
+            headers={"Host": "www.shortcrew.co.kr"},
+            follow_redirects=False,
+        )
+        self.assertEqual(r.status_code, 301)
+        self.assertEqual(r.headers.get("location"), "https://shortcrew.co.kr/golf")
+
+        r2 = self.client.get(
+            "/",
+            headers={"Host": "www.shortcrew.co.kr"},
+            follow_redirects=False,
+        )
+        self.assertEqual(r2.status_code, 301)
+        self.assertEqual(r2.headers.get("location"), "https://shortcrew.co.kr/")
+
+        r3 = self.client.get(
+            "/about?x=1",
+            headers={"Host": "www.shortcrew.co.kr"},
+            follow_redirects=False,
+        )
+        self.assertEqual(r3.status_code, 301)
+        self.assertEqual(r3.headers.get("location"), "https://shortcrew.co.kr/about?x=1")
+
+        r4 = self.client.get("/health", headers={"Host": "shortcrew.co.kr"})
+        self.assertEqual(r4.status_code, 200)
+
     def test_about_page(self) -> None:
         r = self.client.get("/about")
         self.assertEqual(r.status_code, 200)

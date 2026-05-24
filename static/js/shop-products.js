@@ -1,27 +1,23 @@
 /**
  * 공개 몰: 시트 웹앱 JSON + 쿠팡 이미지 워커.
- * 시트 B열(또는 JSON `category`) 기준 카테고리 필터·페이지네이션(모바일 8=2×4, 데스크톱 10=5×2).
+ * 시트 B열(또는 JSON `category`) 기준 카테고리·상품명 검색 필터·페이지네이션(20개/페이지).
  */
 (function () {
     var allProducts = [];
     var currentPage = 1;
     var PRODUCTS_CACHE_NS = "products";
     var PRODUCTS_CACHE_TTL_MS = 120 * 1000;
-    /**
-     * 삼성 인터넷 등: 주소창·visualViewport 로 window resize 가 매우 잦고, 너비가 720 근처에서 흔들리면
-     * getPageSize 8↔10 이 반복되어 paint → img 재생성 → 로드 끊김·onerror 가 반복될 수 있음.
-     * matchMedia(...).change 는 “모바일/데스크톱” 구간을 넘을 때만 발생(높이만 변할 때는 미발생).
-     */
-    var lastLayoutPageSize = -1;
+    var DEFAULT_PRODUCTS_PER_PAGE = 20;
 
     function getPageSize() {
-        if (typeof window !== "undefined" && window.matchMedia) {
-            if (window.matchMedia("(max-width: 720px)").matches) return 8;
-        }
-        return 10;
+        var cfg = readConfig();
+        var n = parseInt(cfg && cfg.productsPerPage, 10);
+        return n > 0 ? n : DEFAULT_PRODUCTS_PER_PAGE;
     }
     /** "" 이면 전체 */
     var activeCategory = "";
+    var searchQuery = "";
+    var searchDebounceTimer = null;
     var ctx = {
         root: null,
         pager: null,
@@ -187,6 +183,19 @@
         });
     }
 
+    function productsFiltered() {
+        var list = productsInCategory();
+        var q = String(searchQuery || "")
+            .trim()
+            .toLowerCase();
+        if (!q) return list;
+        return list.filter(function (p) {
+            var name = pickName(p).toLowerCase();
+            var cat = pickCategory(p).toLowerCase();
+            return name.indexOf(q) !== -1 || cat.indexOf(q) !== -1;
+        });
+    }
+
     function uniqueSortedCategories(products) {
         var seen = {};
         var out = [];
@@ -299,9 +308,25 @@
         }
     }
 
-    function renderError(root, msg) {
+    var SHOP_EMPTY_MSG = "등록된 상품이 없습니다";
+
+    function logProductsLoadError(err, fetchUrl, cfg) {
+        try {
+            if (typeof console !== "undefined" && console.error) {
+                console.error("[shop-products] load failed", {
+                    message: err && err.message ? String(err.message) : String(err),
+                    fetchUrl: fetchUrl,
+                    apiUrl: cfg && cfg.mallProductsApiUrl,
+                    channel: cfg && cfg.mallApiChannel,
+                });
+            }
+        } catch (e) {}
+    }
+
+    function renderShopEmpty(root) {
         hideCategoryBar();
-        root.innerHTML = '<p class="muted">' + msg + "</p>";
+        root.innerHTML =
+            '<p class="shop-products-empty muted">' + SHOP_EMPTY_MSG + "</p>";
         root.setAttribute("aria-busy", "false");
         var pg = ctx.pager;
         if (pg) {
@@ -360,7 +385,8 @@
     function renderCards(root, items, workerBase, influencerSlug, partnersLptag) {
         root.innerHTML = "";
         if (!items.length) {
-            root.innerHTML = '<p class="muted">표시할 상품이 없습니다.</p>';
+            root.innerHTML =
+                '<p class="shop-products-empty muted">' + SHOP_EMPTY_MSG + "</p>";
             root.setAttribute("aria-busy", "false");
             return;
         }
@@ -489,10 +515,14 @@
 
     function paint() {
         if (!ctx.root) return;
-        var list = productsInCategory();
+        var list = productsFiltered();
 
         if (list.length === 0 && allProducts.length > 0) {
-            ctx.root.innerHTML = '<p class="muted">이 카테고리에 표시할 상품이 없습니다.</p>';
+            var emptyMsg = searchQuery.trim()
+                ? "검색 결과가 없습니다."
+                : "이 카테고리에 표시할 상품이 없습니다.";
+            ctx.root.innerHTML =
+                '<p class="shop-products-empty muted">' + emptyMsg + "</p>";
             ctx.root.setAttribute("aria-busy", "false");
             syncCategoryPillsActive();
             if (ctx.pager) {
@@ -519,16 +549,14 @@
         allProducts = Array.isArray(list) ? list : [];
         currentPage = 1;
         activeCategory = "";
+        searchQuery = "";
+        var searchEl = document.getElementById("shop-product-search");
+        if (searchEl) searchEl.value = "";
         if (!allProducts.length) {
-            hideCategoryBar();
-            renderError(
-                ctx.root,
-                "표시할 상품이 없습니다. 시트에 행이 있는지·웹앱 응답 형식을 확인하세요.",
-            );
+            renderShopEmpty(ctx.root);
             return false;
         }
         initCategoryBar();
-        lastLayoutPageSize = getPageSize();
         paint();
         return true;
     }
@@ -581,18 +609,14 @@
         ctx.partnersLptag = String(cfg.coupangPartnersLptag || "").trim();
 
         if (!fetchUrl) {
-            if (!apiUrl) {
+            if (!apiUrl || !channel) {
                 if (loading) loading.remove();
-                renderError(
-                    ctx.root,
-                    "이 인플루언서 몰에 연결된 시트 상품 API URL이 없습니다. " +
-                        "`.env`에 CHANNEL_…_MALL_PRODUCTS_API_URL 또는 PRODUCT_DELIVERY_WEBAPP_URL 을 설정하세요.",
+                logProductsLoadError(
+                    new Error("mall products API not configured"),
+                    "",
+                    cfg,
                 );
-                return;
-            }
-            if (!channel) {
-                if (loading) loading.remove();
-                renderError(ctx.root, "채널 ID가 비어 있어 상품 API 주소를 만들 수 없습니다.");
+                renderShopEmpty(ctx.root);
                 return;
             }
             fetchUrl = buildProductsApiUrl(apiUrl, channel);
@@ -600,7 +624,9 @@
 
         fetchUrl = String(fetchUrl || "").trim();
         if (fetchUrl) {
-            if (/^\/\//.test(fetchUrl)) {
+            if (/^https?:\/\//i.test(fetchUrl)) {
+                /* absolute URL — use as-is */
+            } else if (/^\/\//.test(fetchUrl)) {
                 fetchUrl =
                     (window.location && window.location.protocol
                         ? window.location.protocol
@@ -652,56 +678,32 @@
             })
             .catch(function (err) {
                 if (loading) loading.remove();
-                var m = err && err.message ? String(err.message) : String(err);
-                renderError(
-                    ctx.root,
-                    "상품을 불러오지 못했습니다. " +
-                        m +
-                        " — 터미널에서 확인: curl -sS " +
-                        JSON.stringify(
-                            (typeof location !== "undefined" && location.origin
-                                ? location.origin
-                                : "") + fetchUrl,
-                        ) +
-                        " — `.env` CHANNEL_*_MALL_PRODUCTS_CHANNEL_PARAM 은 Apps Script가 쓰는 ?channel= 값(샘플 APPS_SCRIPT_CHANNEL)과 맞출 것.",
-                );
+                logProductsLoadError(err, fetchUrl, cfg);
+                renderShopEmpty(ctx.root);
             });
     }
 
-    function bindLayoutModeListener() {
-        if (typeof window === "undefined" || !window.matchMedia) return;
-        var mq = window.matchMedia("(max-width: 720px)");
-        var debounceTimer = null;
-        function onMediaChange() {
-            if (!ctx.root || !allProducts.length) return;
-            if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(function () {
-                debounceTimer = null;
-                var ps = getPageSize();
-                if (ps === lastLayoutPageSize) {
-                    return;
-                }
-                lastLayoutPageSize = ps;
-                var list = productsInCategory();
-                clampPageFor(list);
+    function bindSearchInput() {
+        var el = document.getElementById("shop-product-search");
+        if (!el) return;
+        el.addEventListener("input", function () {
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(function () {
+                searchDebounceTimer = null;
+                searchQuery = el.value || "";
+                currentPage = 1;
                 paint();
             }, 200);
-        }
-        if (mq.addEventListener) {
-            mq.addEventListener("change", onMediaChange);
-        } else if (mq.addListener) {
-            mq.addListener(onMediaChange);
-        }
-        window.addEventListener("orientationchange", onMediaChange);
+        });
     }
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", function () {
             load();
-            bindLayoutModeListener();
+            bindSearchInput();
         });
     } else {
         load();
-        bindLayoutModeListener();
+        bindSearchInput();
     }
 })();

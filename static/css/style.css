@@ -1,24 +1,35 @@
 :root {
-    --purple-700: #5f0080;
-    --purple-600: #4a0066;
-    --purple-100: #f3e5ff;
-    --gray-900: #1a1a1a;
-    --gray-600: #5c5c5c;
-    --gray-200: #d6d6d6;
-    --gray-100: #f5f5f5;
-    --surface-muted: #f0f0f0;
-    --white: #fff;
-    --shadow-sm: 0 1px 3px rgba(31, 25, 43, 0.04);
-    --shadow-md: 0 4px 16px rgba(31, 25, 43, 0.06);
-    --radius-lg: 8px;
-    --radius-md: 6px;
-    /* 좌우 여백: 헤더·푸터·본문 동일 토큰 (+ safe-area). 본문은 main > .container 로 정렬 통일 */
+    /* ShortCrew V2.0 — dark charcoal / cyan / amber */
+    --bg-base: #121212;
+    --surface-card: #1e1e1e;
+    --surface-muted: #262626;
+    --cyan-main: #00c2d1;
+    --cyan-dark: #0098a3;
+    --cyan-hover: rgba(0, 194, 209, 0.08);
+    --amber-cta: #ffb800;
+    --amber-hover: #e6a600;
+    --text-main: #ffffff;
+    --text-muted: #a3a3a3;
+    --border-line: #2e2e2e;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.25);
+    --radius-lg: 12px;
+    --radius-md: 8px;
     --page-pad-x: max(1rem, env(safe-area-inset-left, 0px));
     --page-pad-x-right: max(1rem, env(safe-area-inset-right, 0px));
     --container-max: 1240px;
     --header-h: 52px;
     --touch-min: 44px;
     --btn-text: 14px;
+    /* legacy aliases (internal references during migration) */
+    --purple-700: var(--cyan-main);
+    --purple-600: var(--cyan-dark);
+    --purple-100: var(--cyan-hover);
+    --gray-900: var(--text-main);
+    --gray-600: var(--text-muted);
+    --gray-200: var(--border-line);
+    --gray-100: var(--surface-muted);
+    --white: var(--text-main);
 }
 
 * {
@@ -31,6 +42,7 @@ html {
     scrollbar-gutter: stable;
 }
 
+html,
 body {
     margin: 0;
     min-height: 100vh;
@@ -40,8 +52,13 @@ body {
     font-family: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
     font-size: 1rem;
     line-height: 1.5;
-    color: var(--gray-900);
-    background: var(--white);
+    color: var(--text-main);
+    background-color: var(--bg-base);
+}
+
+body {
+    flex: 1;
+    width: 100%;
 }
 
 @media (min-width: 640px) {
@@ -67,9 +84,9 @@ a {
     flex-shrink: 0;
     overflow: hidden;
     width: 100%;
-    background: var(--purple-700);
-    color: var(--white);
-    border-bottom: 1px solid var(--purple-600);
+    background: var(--surface-muted);
+    color: var(--cyan-main);
+    border-bottom: 1px solid var(--border-line);
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.01em;
@@ -171,8 +188,10 @@ a {
     top: 0;
     z-index: 40;
     width: 100%;
-    background: var(--white);
-    border-bottom: 1px solid var(--gray-200);
+    background: rgba(18, 18, 18, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-line);
 }
 
 /* 한 줄: 왼쪽 로고(가변) · 오른쪽 메뉴(고정폭) — flex 대신 grid로 정렬, container와 책임 분리 */
@@ -216,7 +235,7 @@ a {
 
 /* 브랜드 로고 스코핑 (헤더 안에서만 작동하도록 가두기) */
 .site-header .brand {
-    color: var(--purple-700);
+    color: var(--text-main);
     font-weight: 800;
     font-size: 1.05rem;
     display: inline-flex;
@@ -304,7 +323,7 @@ a {
     padding: 0;
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
-    background: var(--white);
+    background: var(--surface-card);
     color: var(--purple-700);
     font-size: 1.1rem;
     cursor: pointer;
@@ -323,10 +342,10 @@ a {
     top: calc(100% + 6px);
     min-width: 11rem;
     padding: 0.35rem 0;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
     z-index: 50;
 }
 
@@ -429,9 +448,9 @@ a {
 }
 
 .hero {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
-    border-left: 4px solid var(--purple-700);
+    border-left: 4px solid var(--amber-cta);
     border-radius: var(--radius-lg);
     padding: 0.85rem 0.9rem;
     margin-bottom: 1rem;
@@ -463,10 +482,20 @@ a {
 
 .hero--dense h1 {
     font-size: 1.05rem;
+    color: var(--amber-cta);
 }
 
 .hero--dense p {
     font-size: 0.8rem;
+}
+
+.hero--dense .hero-tagline,
+.hero--dense .hero-sub {
+    color: var(--text-main);
+}
+
+.hero--dense .hero-tagline strong {
+    color: var(--text-main);
 }
 
 .hero--dense .mall-profile {
@@ -475,21 +504,23 @@ a {
     max-width: 40px;
     max-height: 40px;
     border-radius: 8px;
+    border-color: var(--amber-cta);
 }
 
 @media (max-width: 720px) {
     .home-creators .section-title {
-        margin: 0.55rem 0 0.4rem;
+        margin: 0.55rem 0 0.6rem;
         font-size: 0.98rem;
     }
 
     .home-creators .creator-rank-list {
-        gap: 0.35rem;
+        gap: 0.5rem;
     }
 
-    .home-creators .creator-rank-card {
-        gap: 0.35rem 0.45rem;
-        padding: 0.35rem 0.45rem;
+    .home-creators .creator-rank-card,
+    .home-creators .cue-card {
+        gap: 0.45rem;
+        padding: 0.65rem 0.5rem 0.5rem;
         --creator-cta-size: 36px;
     }
 
@@ -546,10 +577,18 @@ a {
     font-size: 1.05rem;
 }
 
+.home-creators > .section-title {
+    margin-bottom: 0.75rem;
+}
+
 @media (min-width: 721px) {
     .section-title {
         margin: 1.2rem 0 0.85rem;
         font-size: 1.15rem;
+    }
+
+    .home-creators > .section-title {
+        margin-bottom: 0.95rem;
     }
 }
 
@@ -568,7 +607,7 @@ a {
 }
 
 .card {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     padding: 10px;
@@ -671,9 +710,9 @@ a {
 
 .product-image {
     width: 100%;
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
 }
 
 .price {
@@ -703,8 +742,10 @@ a {
 }
 
 .btn-primary {
-    background: var(--purple-700);
-    color: var(--white);
+    background: var(--cyan-main);
+    color: #000000;
+    font-weight: 700;
+    border: none;
 }
 
 .btn-outline {
@@ -780,7 +821,7 @@ a {
     bottom: 0;
     z-index: 60;
     padding: 0.5rem var(--page-pad-x) calc(0.55rem + env(safe-area-inset-bottom, 0px)) var(--page-pad-x-right);
-    background: var(--white);
+    background: var(--surface-card);
     border-top: 1px solid var(--gray-200);
     box-shadow: none;
 }
@@ -788,36 +829,39 @@ a {
 .review-purchase-dock .btn-purchase-wide--dock {
     margin: 0;
     min-height: 48px;
-    background: var(--purple-700);
-    color: var(--white);
+    background: var(--amber-cta);
+    color: #000000;
+    font-weight: 800;
+    border: none;
     border-radius: 8px;
 }
 
 .creator-rank-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
 }
 
 @media (min-width: 721px) {
     .creator-rank-list {
-        gap: 0.55rem;
+        gap: 0.75rem;
     }
 }
 
-.creator-rank-card {
+.creator-rank-card,
+.cue-card {
     --creator-cta-size: 40px;
     display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 0.45rem 0.5rem;
-    padding: 0.45rem 0.5rem;
-    background: var(--white);
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-md);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    background: var(--surface-card);
+    border: 1px solid var(--border-line);
+    border-radius: var(--radius-lg);
     box-shadow: none;
     min-width: 0;
+    color: var(--text-main);
 }
 
 @media (min-width: 721px) {
@@ -829,17 +873,188 @@ a {
     }
 }
 
-/* 홈 전용: 카드·CTA 행이 세로로 쌓이지 않도록 한 번 더 고정 */
-.home-creators .creator-rank-card {
-    flex-direction: row;
-    flex-wrap: nowrap;
+.home-creators .creator-rank-list {
+    gap: 0.75rem;
 }
 
-.home-creators .creator-rank-card__cta-row {
+.home-creators .creator-rank-card,
+.home-creators .cue-card {
+    flex-direction: column;
+    padding-top: 0.72rem;
+}
+
+@media (min-width: 721px) {
+    .home-creators .creator-rank-list {
+        gap: 0.9rem;
+    }
+
+    .home-creators .creator-rank-card,
+    .home-creators .cue-card {
+        padding-top: 0.8rem;
+    }
+}
+
+.home-creators .creator-rank-card__cta-row,
+.home-creators .cue-card__cta-row {
     display: flex;
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.35rem;
+    margin-top: auto;
+}
+
+.cue-card__pill {
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.cue-card__pill--intro {
+    background: transparent;
+    color: var(--cyan-main);
+    border-color: var(--cyan-main);
+}
+
+.cue-card__pill--intro:hover,
+.cue-card__pill--intro:focus-visible {
+    background: var(--cyan-hover);
+    outline: none;
+}
+
+.cue-card__pill--shop {
+    background: var(--amber-cta);
+    color: #000000;
+    border: none;
+    font-weight: 800;
+}
+
+.cue-card__pill--shop:hover {
+    background: var(--amber-hover);
+}
+
+.cue-card__pill--sns {
+    background: var(--surface-muted);
+    color: var(--text-main);
+    border-color: var(--border-line);
+}
+
+.cue-card__pill--sns:hover {
+    border-color: var(--cyan-main);
+    color: var(--cyan-main);
+}
+
+.cue-card__pill.is-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.crew-intro-dialog {
+    margin: auto;
+    padding: 0;
+    border: none;
+    max-width: calc(100vw - 2rem);
+    width: min(28rem, 100%);
+    background: transparent;
+    color: var(--text-main);
+}
+
+.crew-intro-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.65);
+}
+
+.crew-intro-dialog__panel {
+    position: relative;
+    padding: 1.35rem 1.25rem 1.25rem;
+    background: var(--surface-card);
+    border: 1px solid var(--border-line);
+    border-radius: var(--radius-lg);
+}
+
+.crew-intro-dialog__close {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--border-line);
+    border-radius: var(--radius-md);
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.crew-intro-dialog__close:hover,
+.crew-intro-dialog__close:focus-visible {
+    color: var(--text-main);
+    border-color: var(--cyan-main);
+    outline: none;
+}
+
+.crew-intro-dialog__title {
+    margin: 0 2.25rem 0.75rem 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.35;
+    color: var(--text-main);
+}
+
+.crew-intro-dialog__body {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.cue-card__head {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.cue-card__badge {
+    display: inline-block;
+    margin-top: 0.25rem;
+    padding: 0.12rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border-radius: 4px;
+    background: var(--cyan-hover);
+    color: var(--cyan-main);
+    border: 1px solid var(--cyan-main);
+}
+
+.creator-rank-card__bio,
+.cue-card__bio {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    margin: 0.2rem 0 0;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    color: var(--text-muted);
 }
 
 .creator-rank-card__avatar {
@@ -937,22 +1152,22 @@ a {
     border-color: var(--purple-700);
 }
 
-.creator-rank-card__shop-btn {
+.creator-rank-card__shop-btn,
+.cue-card__shop-btn {
     display: inline-flex;
     box-sizing: border-box;
     align-items: center;
     justify-content: center;
     gap: 0.28rem;
-    flex: 0 0 auto;
-    height: var(--creator-cta-size);
+    flex: 1 1 auto;
     min-height: var(--creator-cta-size);
     padding: 0 0.65rem;
     border-radius: 999px;
     font-size: max(0.68rem, calc(var(--creator-cta-size) * 0.36));
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1;
-    background: var(--purple-700);
-    color: var(--white);
+    background: var(--amber-cta);
+    color: #000000;
     border: none;
     cursor: pointer;
     text-decoration: none;
@@ -965,8 +1180,9 @@ a {
     line-height: 1;
 }
 
-.creator-rank-card__shop-btn:hover {
-    background: var(--purple-600);
+.creator-rank-card__shop-btn:hover,
+.cue-card__shop-btn:hover {
+    background: var(--amber-hover);
 }
 
 .shop-hero {
@@ -975,7 +1191,7 @@ a {
     overflow: hidden;
     margin-bottom: 0.65rem;
     min-height: 112px;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     box-shadow: none;
 }
@@ -1115,7 +1331,7 @@ a {
     z-index: 35;
     margin-bottom: 0.5rem;
     padding: 0.25rem 0 0.35rem;
-    background: var(--white);
+    background: var(--surface-card);
     border-bottom: 1px solid var(--gray-200);
     box-shadow: none;
 }
@@ -1135,7 +1351,7 @@ a {
     flex-wrap: nowrap;
     gap: 0.25rem;
     padding: 0.2rem;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: 999px;
     box-shadow: none;
@@ -1181,6 +1397,10 @@ a.shop-tabs__tab:focus-visible {
     display: none !important;
 }
 
+.shop-page .shop-tab-panel {
+    width: 100%;
+}
+
 .review-board {
     display: flex;
     flex-direction: column;
@@ -1199,7 +1419,7 @@ a.shop-tabs__tab:focus-visible {
     align-items: center;
     gap: 0.65rem;
     padding: 0.65rem 0.75rem;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     box-shadow: none;
@@ -1250,7 +1470,7 @@ a.review-board__item:hover {
 .channel-about {
     text-align: center;
     padding: 1.15rem 0.85rem;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     box-shadow: none;
@@ -1359,7 +1579,7 @@ a.review-board__item:hover {
     padding: 0 0.45rem;
     border: 1px solid var(--gray-200);
     border-radius: 8px;
-    background: var(--white);
+    background: var(--surface-card);
     font: inherit;
     font-size: var(--btn-text);
     font-weight: 600;
@@ -1390,7 +1610,7 @@ a.review-board__item:hover {
 }
 
 .list-item {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: 10px;
     padding: 1rem;
@@ -1409,7 +1629,7 @@ a.review-board__item:hover {
 }
 
 .detail-article {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: var(--radius-md);
     padding: 0.85rem;
@@ -1472,7 +1692,7 @@ a.review-board__item:hover {
 }
 
 .stat-card {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: 10px;
     padding: 0.9rem;
@@ -1492,7 +1712,7 @@ a.review-board__item:hover {
 }
 
 .admin-panel {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: 10px;
     padding: 1rem;
@@ -1532,7 +1752,7 @@ a.review-board__item:hover {
 .site-footer {
     flex-shrink: 0;
     border-top: 1px solid var(--gray-200);
-    background: var(--white);
+    background: var(--surface-card);
     padding: 0.65rem 0;
 }
 
@@ -1565,7 +1785,7 @@ a.review-board__item:hover {
 }
 
 .about-page__body {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-left: 4px solid var(--purple-700);
     border-radius: var(--radius-lg);
@@ -1598,12 +1818,12 @@ a.review-board__item:hover {
     margin: 1.5rem auto 2rem;
     max-width: 32rem;
     text-align: center;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-top: 4px solid var(--purple-700);
     border-radius: var(--radius-lg);
     padding: 2rem 1.25rem 1.75rem;
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
 }
 
 .error-page__code {
@@ -1789,15 +2009,6 @@ a.review-board__item:hover {
     font-size: 0.85rem;
 }
 
-.site-footer__admin a {
-    color: var(--purple-700);
-    font-weight: 600;
-}
-
-.site-footer__admin a:hover {
-    text-decoration: underline;
-}
-
 .site-footer__dashboard {
     display: inline-flex;
     align-items: center;
@@ -1807,12 +2018,6 @@ a.review-board__item:hover {
     font-size: 1.1rem;
     text-decoration: none;
     border-radius: 8px;
-}
-
-.site-footer__dashboard:hover {
-    text-decoration: none;
-    background: var(--gray-100);
-    color: var(--purple-600);
 }
 
 /* 좁은 화면: 가로형 랭킹·2열 상품 유지, 히어로만 미세 조정 */
@@ -1844,7 +2049,11 @@ a.review-board__item:hover {
 }
 
 .shop-page .shop-section-band {
-    display: none;
+    display: block;
+    height: 8px;
+    background: var(--surface-muted);
+    border: none;
+    margin: 0;
 }
 
 .shop-page .shop-hero {
@@ -1941,7 +2150,7 @@ a.review-board__item:hover {
 }
 
 .shop-page .shop-tabs {
-    background: var(--white);
+    background: var(--surface-card);
     box-shadow: none;
     margin-top: 0;
     margin-bottom: 0;
@@ -2025,7 +2234,7 @@ a.review-board__item:hover {
     padding: 0 0.75rem;
     border-radius: 999px;
     border: 1px solid var(--gray-200);
-    background: var(--white);
+    background: var(--surface-card);
     color: var(--gray-900);
     font: inherit;
     font-size: 0.78rem;
@@ -2150,6 +2359,16 @@ a.review-board__item:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-top: 0.45rem;
+    width: 100%;
+}
+
+.shop-page #shop-product-root .shop-products-empty {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 @media (min-width: 721px) {
@@ -2161,7 +2380,7 @@ a.review-board__item:hover {
 }
 
 .shop-page #shop-product-root .card.card--product {
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: 8px;
     padding: 6px;
@@ -2245,7 +2464,7 @@ a.review-board__item:hover {
 }
 
 .admin-topbar {
-    background: var(--white);
+    background: var(--surface-card);
     border-bottom: 1px solid var(--gray-200);
 }
 
@@ -2282,7 +2501,7 @@ a.review-board__item:hover {
 .admin-sidebar {
     width: 220px;
     flex-shrink: 0;
-    background: var(--white);
+    background: var(--surface-card);
     border: 1px solid var(--gray-200);
     border-radius: 12px;
     padding: 0.75rem 0;
@@ -2389,4 +2608,130 @@ a.review-board__item:hover {
         border-top: none;
         padding-top: 0.35rem;
     }
+}
+
+/* ----- ShortCrew V2.0 component overrides (PDF §7) ----- */
+.btn-purchase-wide,
+.detail-article__cta-wrap .btn-purchase-wide {
+    background-color: var(--amber-cta) !important;
+    color: #000000 !important;
+    font-weight: 800 !important;
+    border: none !important;
+}
+
+.btn-purchase-wide:hover,
+.detail-article__cta-wrap .btn-purchase-wide:hover {
+    background-color: var(--amber-hover) !important;
+}
+
+.card,
+.creator-rank-card,
+.cue-card,
+.review-board__item,
+.channel-about {
+    background-color: var(--surface-card) !important;
+    border: 1px solid var(--border-line) !important;
+    color: var(--text-main) !important;
+    box-shadow: none !important;
+}
+
+.shop-tabs__tab[aria-selected="true"],
+.shop-product-categories__pill.is-active {
+    background-color: var(--cyan-main) !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+    border-color: var(--cyan-main) !important;
+}
+
+.shop-product-search {
+    width: 100%;
+    margin: 0 0 0.65rem;
+    min-height: var(--touch-min);
+    padding: 0 0.85rem;
+    font-size: var(--btn-text);
+    font-family: inherit;
+    color: var(--text-main);
+    background: var(--surface-card);
+    border: 1px solid var(--border-line);
+    border-radius: var(--radius-md);
+}
+
+.shop-product-search::placeholder {
+    color: var(--text-muted);
+}
+
+.shop-product-search:focus {
+    outline: 2px solid var(--cyan-main);
+    outline-offset: 1px;
+}
+
+.collab-dialog__panel {
+    background: var(--surface-card);
+    border-color: var(--border-line);
+    color: var(--text-main);
+}
+
+.collab-dialog__title {
+    color: var(--text-main);
+}
+
+.collab-dialog__text {
+    color: var(--text-muted);
+}
+
+.collab-dialog__email {
+    color: var(--cyan-main);
+}
+
+.collab-dialog__email:hover,
+.collab-dialog__email:focus-visible {
+    color: var(--cyan-dark);
+}
+
+.collab-dialog__cta {
+    background: var(--cyan-main);
+    color: #000000;
+}
+
+.collab-dialog__cta:hover,
+.collab-dialog__cta:focus-visible {
+    background: var(--cyan-dark);
+}
+
+.site-footer {
+    border-top: 1px solid var(--border-line);
+    color: var(--text-muted);
+}
+
+/* 풋터 대시보드: © 안내 문구와 동일 색 (--text-muted / .site-footer p) */
+.site-footer p.site-footer__admin a.site-footer__dashboard,
+.site-footer p.site-footer__admin a.site-footer__dashboard:visited,
+.site-footer p.site-footer__admin a.site-footer__dashboard i,
+.site-footer p.site-footer__admin a.site-footer__dashboard i::before {
+    color: var(--text-muted) !important;
+    -webkit-text-fill-color: var(--text-muted) !important;
+}
+
+.site-footer p.site-footer__admin a.site-footer__dashboard:hover,
+.site-footer p.site-footer__admin a.site-footer__dashboard:focus-visible,
+.site-footer p.site-footer__admin a.site-footer__dashboard:hover i,
+.site-footer p.site-footer__admin a.site-footer__dashboard:focus-visible i,
+.site-footer p.site-footer__admin a.site-footer__dashboard:hover i::before,
+.site-footer p.site-footer__admin a.site-footer__dashboard:focus-visible i::before {
+    color: var(--text-muted) !important;
+    -webkit-text-fill-color: var(--text-muted) !important;
+    background: transparent !important;
+    text-decoration: none !important;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
