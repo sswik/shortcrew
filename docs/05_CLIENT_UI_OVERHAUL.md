@@ -51,6 +51,13 @@
 - 모바일 ≤720px: 상품 2열, 5개 페이징
 - `prefers-reduced-motion`: 마키 off
 
+## 상품 전시 순서 랜덤화
+
+- `/api/mall-products` 프록시 응답 시 **날짜 시드(`date.today()`) 기반 셔플** 적용
+- `random.Random(str(date.today())).shuffle(items)` — 같은 날에는 모든 사용자에게 동일 순서, 자정(KST) 넘으면 자동 변경
+- 캐시(45s TTL)에 셔플된 결과를 저장하므로 캐시 히트 시에도 순서 일관
+- 구현 위치: [main.py](../main.py) `api_mall_products()`
+
 ## 공개 URL
 
 - `/{name_slug}`, `/{name_slug}/review`, `/{name_slug}/review/{id}`, `/{name_slug}/introduce`

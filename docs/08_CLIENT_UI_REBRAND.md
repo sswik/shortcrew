@@ -133,6 +133,13 @@ Short-on(퍼플·라이트)에서 **ShortCrew V2.0**(다크 차콜 / 시안 / �
 | `--text-muted` | `#A3A3A3` | 보조 |
 | `--border-line` | `#2E2E2E` | 1px 구분 |
 
+## 상품 전시 순서 일일 랜덤화
+
+- **방식:** `/api/mall-products` 프록시에서 시트 JSON 응답을 `random.Random(str(date.today()))` 시드로 셔플
+- **주기:** 매일 자정(날짜 변경) 시 시드가 바뀌어 자동으로 순서 변경 — 별도 cron/스케줄러 불필요
+- **일관성:** 같은 날에는 캐시·비캐시 무관하게 동일 순서 (시드가 날짜 문자열)
+- **위치:** [main.py](../main.py) `api_mall_products()` — 캐시 저장 직전에 셔플 적용
+
 ## 완료 기준 (DoD)
 
 - 공개 전 페이지 다크 V2 톤, 트래킹 회귀 없음

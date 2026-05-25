@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import time
 from threading import Lock
 from collections.abc import Generator
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
@@ -98,6 +99,10 @@ _mall_products_cache: dict[str, tuple[float, bytes, str]] = {}
 
 logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
+
+_sheet_products_count_cache_lock = Lock()
+_sheet_products_count_cache: dict[str, tuple[float, int]] = {}
+_SHEET_COUNT_CACHE_TTL = 120.0
 
 _ACCESS_LOG_DIR = _ROOT / "logs"
 _access_log_lock = Lock()
@@ -542,13 +547,23 @@ def api_mall_products(channel_id: str = "") -> Response:
 
     ct = (resp.headers.get("content-type") or "application/json").split(";", 1)[0].strip()
     media_type = ct or "application/json"
+
+    body = resp.content
+    try:
+        items = json.loads(body)
+        if isinstance(items, list) and len(items) > 1:
+            random.Random(str(date.today())).shuffle(items)
+            body = json.dumps(items, ensure_ascii=False).encode()
+    except (json.JSONDecodeError, TypeError):
+        pass
+
     with _mall_products_cache_lock:
         _mall_products_cache[cid] = (
             time.monotonic() + max(1.0, _MALL_PRODUCTS_CACHE_TTL_SECONDS),
-            resp.content,
+            body,
             media_type,
         )
-    return Response(content=resp.content, media_type=media_type)
+    return Response(content=body, media_type=media_type)
 
 
 @app.get("/reviews/{name_slug}", response_class=HTMLResponse)
@@ -635,15 +650,82 @@ def admin_logout() -> RedirectResponse:
     return resp
 
 
+def _fetch_channel_product_count(channel: dict) -> tuple[str, int]:
+    """채널 1개의 시트 상품 수를 캐시 우선으로 가져온다."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    cid = (channel.get("channel_id") or "").strip()
+    if not cid:
+        return cid, 0
+
+    now = time.monotonic()
+    with _sheet_products_count_cache_lock:
+        cached = _sheet_products_count_cache.get(cid)
+    if cached and cached[0] > now:
+        return cid, cached[1]
+
+    base = (channel.get("mall_products_api_url") or "").strip()
+    if not base:
+        return cid, 0
+    chan_q = (channel.get("mall_products_channel_param") or "").strip() or cid
+    sep = "?" if "?" not in base else "&"
+    target = f"{base}{sep}channel={quote(chan_q, safe='')}"
+    try:
+        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+            resp = client.get(
+                target,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "Shortcrew/1.0 dashboard-count",
+                },
+            )
+        if resp.status_code >= 400:
+            return cid, 0
+        data = resp.json()
+        items: list = []
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = data.get("items") or data.get("products") or []
+        count = len(items) if isinstance(items, list) else 0
+    except Exception:
+        return cid, 0
+
+    with _sheet_products_count_cache_lock:
+        _sheet_products_count_cache[cid] = (now + _SHEET_COUNT_CACHE_TTL, count)
+    return cid, count
+
+
+def _total_sheet_products_count() -> tuple[int, dict[str, int]]:
+    """전 채널 시트 상품 수를 병렬로 가져와 합산한다. (per_channel dict도 반환)"""
+    from concurrent.futures import ThreadPoolExecutor
+    from app.admin.ops.channels import get_channels
+
+    channels = get_channels()
+    mall_channels = [ch for ch in channels if (ch.get("mall_products_api_url") or "").strip()]
+    if not mall_channels:
+        return 0, {}
+    per_channel: dict[str, int] = {}
+    with ThreadPoolExecutor(max_workers=min(len(mall_channels), 6)) as pool:
+        results = list(pool.map(_fetch_channel_product_count, mall_channels))
+    for cid, cnt in results:
+        if cid:
+            per_channel[cid] = cnt
+    return sum(per_channel.values()), per_channel
+
+
 @app.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
     _: None = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> HTMLResponse:
+    from app.admin.ops.channels import get_channels as _get_ch
+
+    total_products, products_per_channel = _total_sheet_products_count()
     stats = {
         "influencers": db.scalar(select(func.count()).select_from(Influencer)) or 0,
-        "products": db.scalar(select(func.count()).select_from(Product)) or 0,
+        "products": total_products,
         "reviews": db.scalar(select(func.count()).select_from(Review)) or 0,
         "clicks": db.scalar(select(func.count()).select_from(ClickLog)) or 0,
     }
@@ -654,6 +736,7 @@ def admin_dashboard(
         {
             "stats": stats,
             "influencers": influencers,
+            "products_per_channel": products_per_channel,
         },
     )
 
