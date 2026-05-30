@@ -59,7 +59,6 @@ body {
     min-height: 100vh;
     min-height: 100dvh;
     width: 100%;
-    padding-top: var(--header-h);
 }
 
 @media (min-width: 640px) {
@@ -185,10 +184,8 @@ a {
    ========================================================================== */
 .site-header {
     flex-shrink: 0;
-    position: fixed;
+    position: sticky;
     top: 0;
-    left: 0;
-    right: 0;
     z-index: 40;
     width: 100%;
     background: rgba(18, 18, 18, 0.85);

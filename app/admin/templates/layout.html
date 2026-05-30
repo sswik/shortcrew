@@ -65,6 +65,11 @@
                     <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">상품 관리</span>
                     <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">상품 관리</span>
                 </a>
+                <a href="/admin/dm" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/dm') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">forum</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">DM 관리</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">DM 관리</span>
+                </a>
                 <a href="/admin/reviews" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/reviews') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
                     <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">rate_review</span>
                     <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">리뷰 관리</span>

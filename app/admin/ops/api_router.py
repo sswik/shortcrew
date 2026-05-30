@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from app.admin.ops.routes import ai as ai_routes
 from app.admin.ops.routes import channels as channels_routes
 from app.admin.ops.routes import coupang as coupang_routes
+from app.admin.ops.routes import dm as dm_routes
 from app.admin.ops.routes import mall as mall_routes
 from app.admin.ops.routes import naver as naver_routes
 from app.admin.ops.routes import sheets as sheets_routes
@@ -23,3 +24,4 @@ router.include_router(sheets_routes.router, prefix="/sheets", tags=["admin-ops"]
 router.include_router(ai_routes.router, prefix="/ai", tags=["admin-ops"])
 router.include_router(mall_routes.router, prefix="/mall", tags=["admin-ops"])
 router.include_router(shorts_review_routes.router, prefix="/shorts-review", tags=["admin-ops"])
+router.include_router(dm_routes.router, prefix="/dm", tags=["admin-ops"])

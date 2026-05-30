@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 
@@ -103,6 +103,38 @@ class ClickLog(Base):
     page_url: Mapped[str | None] = mapped_column(String(800), nullable=True, default=None)
     referrer_snapshot: Mapped[str | None] = mapped_column(String(600), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DmAutomation(Base):
+    """인스타 댓글→자동 DM 규칙(인포크식). docs/09 C 참고."""
+
+    __tablename__ = "dm_automations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    channel_id: Mapped[str] = mapped_column(String(8), index=True)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    # 게시물 타게팅: specific(직접 선택) | next(다음 발행 게시물 자동)
+    target_mode: Mapped[str] = mapped_column(String(16), default="specific")
+    ig_media_id: Mapped[str | None] = mapped_column(String(40), nullable=True, default=None)
+    media_permalink: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    media_thumbnail: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
+    next_baseline_ts: Mapped[str | None] = mapped_column(String(40), nullable=True, default=None)
+    # 트리거: any(모든 댓글) | keyword(특정 키워드)
+    trigger_type: Mapped[str] = mapped_column(String(16), default="keyword")
+    keywords_json: Mapped[str] = mapped_column(Text, default="[]")
+    # 공개 답글(댓글에 답글): 랜덤 변형 최대 3
+    public_reply_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    public_reply_variants_json: Mapped[str] = mapped_column(Text, default="[]")
+    # DM 내용(상품 선택 → 딥링크 자동)
+    dm_message: Mapped[str] = mapped_column(Text, default="")
+    dm_product_ref: Mapped[str | None] = mapped_column(String(160), nullable=True, default=None)
+    dm_product_title: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
+    dm_link: Mapped[str] = mapped_column(String(800), default="")
+    # 옵션/상태
+    follower_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 engine = create_engine(

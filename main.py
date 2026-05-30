@@ -71,6 +71,7 @@ from app.admin.auth import (
     verify_admin_login,
 )
 from app.admin.ops.api_router import router as ops_api_router
+from app.webhooks.instagram import router as ig_webhook_router
 from app.client.mall_sheet import resolve_mall_products_api
 from app.client.profile_display import format_cue_card_tagline
 from app.client.mall_theme import (
@@ -192,6 +193,7 @@ def _log_review_admin_persist(*, event: str, review: Review) -> None:
 
 app = FastAPI(title="숏크루")
 app.include_router(ops_api_router, prefix="/admin/api/ops", tags=["admin-ops"])
+app.include_router(ig_webhook_router, tags=["webhooks"])  # 공개(인증 없음): /webhooks/instagram
 
 _WWW_REDIRECT_HOST = "www.shortcrew.co.kr"
 _APEX_PUBLIC_HOST = "shortcrew.co.kr"
@@ -1099,6 +1101,15 @@ def admin_products(
 ) -> HTMLResponse:
     """쿠팡 검색·시트 전송·등록 상품(sample/ops dashboard 동등, API는 /admin/api/ops)."""
     return templates.TemplateResponse(request, "products.html", {})
+
+
+@app.get("/admin/dm", response_class=HTMLResponse)
+def admin_dm(
+    request: Request,
+    _: None = Depends(require_admin),
+) -> HTMLResponse:
+    """인스타 댓글→자동 DM 관리(인포크식). 규칙 CRUD는 /admin/api/ops/dm."""
+    return templates.TemplateResponse(request, "dm.html", {})
 
 
 @app.get("/admin/sheets", response_class=HTMLResponse)
