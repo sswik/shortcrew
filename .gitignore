@@ -2,6 +2,7 @@
 .env
 .env.local
 *.pem
+google-key.json
 
 # 가상환경
 .venv/
