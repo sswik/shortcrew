@@ -33,19 +33,40 @@ def _api_version() -> str:
     return (os.environ.get("IG_GRAPH_API_VERSION") or "v21.0").strip() or "v21.0"
 
 
+def _channel_ig_ids(channel_id: str) -> set[str]:
+    """채널의 본인 IG ID 집합 — 네이티브 계정 ID + 앱스코프 ID.
+
+    한 IG 계정은 두 ID 를 가진다(`/me` 의 `user_id`=네이티브, `id`=앱스코프).
+    웹훅 `entry.id`/`from.id` 가 둘 중 어느 값으로 올지 보장되지 않으므로 둘 다 본인으로 본다.
+    """
+    return {
+        v for v in (
+            os.environ.get(channel_env(channel_id, "IG_ACCOUNT_ID"), "").strip(),
+            os.environ.get(channel_env(channel_id, "IG_APP_SCOPED_ID"), "").strip(),
+        ) if v
+    }
+
+
 def _resolve_ig_channel(account_id: str) -> tuple[dict, str] | None:
-    """댓글이 달린 IG 계정 ID 로 채널 dict 와 액세스 토큰을 찾는다(없으면 None)."""
+    """웹훅 entry.id(IG 계정 ID)로 채널 dict 와 액세스 토큰을 찾는다(없으면 None).
+
+    entry.id 는 네이티브/앱스코프 중 하나로 오므로 두 ID 모두와 대조한다.
+    """
     if not account_id:
         return None
     for ch in get_channels():
         cid = (ch.get("channel_id") or "").strip()
         if not cid:
             continue
-        acct = os.environ.get(channel_env(cid, "IG_ACCOUNT_ID"), "").strip()
-        if acct and acct == account_id:
+        if account_id in _channel_ig_ids(cid):
             token = os.environ.get(channel_env(cid, "IG_ACCESS_TOKEN"), "").strip()
             return ch, token
     return None
+
+
+def _send_account_id(channel_id: str) -> str:
+    """Graph API 호출(/messages) 에 쓸 네이티브 IG 계정 ID. 없으면 빈 문자열."""
+    return os.environ.get(channel_env(channel_id, "IG_ACCOUNT_ID"), "").strip()
 
 
 def _dm_text_from_rule(rule: DmAutomation) -> str:
@@ -172,21 +193,25 @@ async def receive(request: Request, background_tasks: BackgroundTasks) -> Respon
                 media_id = str((value.get("media") or {}).get("id") or "")
                 if not comment_id:
                     continue
-                if from_id and from_id == account_id:
-                    continue  # 운영 계정 본인 댓글/답글 → 루프 방지
                 resolved = _resolve_ig_channel(account_id)
                 if resolved is None:
                     log.warning("ig_comment_unmapped account=%s comment=%s", account_id, comment_id)
                     continue
                 channel, token = resolved
+                channel_id = str(channel.get("channel_id") or "")
+                # 운영 계정 본인 댓글/답글(네이티브·앱스코프 ID 모두) → 루프 방지
+                if from_id and from_id in _channel_ig_ids(channel_id):
+                    continue
                 if not token:
                     log.warning("ig_comment_no_token channel=%s account=%s",
-                                channel.get("channel_id"), account_id)
+                                channel_id, account_id)
                     continue
-                rule = _match_rule(db, str(channel.get("channel_id") or ""), media_id, text)
+                # Graph API 호출은 항상 네이티브 계정 ID 로(entry.id 가 앱스코프여도 안전)
+                send_id = _send_account_id(channel_id) or account_id
+                rule = _match_rule(db, channel_id, media_id, text)
                 if rule is None:
                     log.info("ig_comment_no_rule channel=%s media=%s comment=%s",
-                             channel.get("channel_id"), media_id, comment_id)
+                             channel_id, media_id, comment_id)
                     continue
                 # 공개 답글(랜덤 변형 1개)
                 if rule.public_reply_enabled:
@@ -195,10 +220,10 @@ async def receive(request: Request, background_tasks: BackgroundTasks) -> Respon
                         background_tasks.add_task(_send_public_reply, token, comment_id, random.choice(variants), ver)
                 # 비공개 DM
                 background_tasks.add_task(
-                    _send_private_reply, account_id, token, comment_id, _dm_text_from_rule(rule), ver,
+                    _send_private_reply, send_id, token, comment_id, _dm_text_from_rule(rule), ver,
                 )
                 log.info("ig_comment_matched channel=%s rule=%s comment=%s",
-                         channel.get("channel_id"), rule.id, comment_id)
+                         channel_id, rule.id, comment_id)
     finally:
         db.close()
     return Response(status_code=200)
