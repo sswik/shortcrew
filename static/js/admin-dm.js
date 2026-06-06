@@ -62,20 +62,20 @@
       .catch(() => { rulesList.textContent = "규칙을 불러오지 못했습니다."; });
   }
   function renderRules() {
-    if (!rulesCache.length) { rulesList.innerHTML = '<p class="text-slate-400">등록된 자동화가 없습니다.</p>'; return; }
+    if (!rulesCache.length) { rulesList.innerHTML = '<p class="text-slate-500">등록된 자동화가 없습니다.</p>'; return; }
     rulesList.innerHTML = "";
     rulesCache.forEach((r) => {
       const trig = r.trigger_type === "keyword" ? "키워드: " + (r.keywords || []).join(", ") : "모든 댓글";
       const post = r.target_mode === "next" ? (r.ig_media_id ? "다음글(연결됨)" : "다음 발행글 대기") : "게시물 지정";
       const div = document.createElement("div");
-      div.className = "flex items-center justify-between gap-3 rounded-lg border border-slate-600 bg-slate-900 p-3";
+      div.className = "flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3";
       div.innerHTML =
-        '<div class="min-w-0"><p class="font-semibold text-slate-100">' + esc(r.name || "(이름 없음)") +
-        (r.active ? "" : ' <span class="text-xs text-slate-500">[비활성]</span>') + "</p>" +
-        '<p class="truncate text-xs text-slate-400">' + esc(post) + " · " + esc(trig) + "</p></div>" +
+        '<div class="min-w-0"><p class="font-semibold text-slate-900">' + esc(r.name || "(이름 없음)") +
+        (r.active ? "" : ' <span class="text-xs text-slate-400">[비활성]</span>') + "</p>" +
+        '<p class="truncate text-xs text-slate-500">' + esc(post) + " · " + esc(trig) + "</p></div>" +
         '<div class="flex shrink-0 gap-2">' +
-        '<button data-edit="' + r.id + '" class="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700">수정</button>' +
-        '<button data-del="' + r.id + '" class="rounded border border-red-700 px-2 py-1 text-xs text-red-300 hover:bg-red-900/40">삭제</button></div>';
+        '<button data-edit="' + r.id + '" class="rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">수정</button>' +
+        '<button data-del="' + r.id + '" class="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50">삭제</button></div>';
       rulesList.appendChild(div);
     });
     rulesList.querySelectorAll("[data-edit]").forEach((b) => (b.onclick = () => openEditor(rulesCache.find((x) => String(x.id) === b.dataset.edit))));
@@ -128,18 +128,18 @@
 
   $("dmLoadMedia").addEventListener("click", () => {
     const cid = channelSel.value; if (!cid) return;
-    mediaGrid.innerHTML = '<p class="col-span-full text-xs text-slate-400">불러오는 중…</p>';
+    mediaGrid.innerHTML = '<p class="col-span-full text-xs text-slate-500">불러오는 중…</p>';
     jget(API + "/dm/media?channel_id=" + encodeURIComponent(cid)).then((d) => renderMedia(d.media || []))
-      .catch(() => { mediaGrid.innerHTML = '<p class="col-span-full text-xs text-red-300">게시물을 불러오지 못했습니다(토큰/권한 확인).</p>'; });
+      .catch(() => { mediaGrid.innerHTML = '<p class="col-span-full text-xs text-red-600">게시물을 불러오지 못했습니다(토큰/권한 확인).</p>'; });
   });
 
   function renderMedia(items) {
     mediaGrid.innerHTML = "";
-    if (!items.length) { mediaGrid.innerHTML = '<p class="col-span-full text-xs text-slate-400">게시물이 없습니다.</p>'; return; }
+    if (!items.length) { mediaGrid.innerHTML = '<p class="col-span-full text-xs text-slate-500">게시물이 없습니다.</p>'; return; }
     items.forEach((m) => {
       const cell = document.createElement("button");
       cell.type = "button";
-      cell.className = "dm-media-cell relative aspect-square overflow-hidden rounded-lg border-2 border-transparent bg-slate-900";
+      cell.className = "dm-media-cell relative aspect-square overflow-hidden rounded-lg border-2 border-transparent bg-slate-100";
       cell.dataset.id = m.id;
       cell.innerHTML = '<img src="' + esc(m.thumbnail || "") + '" alt="" class="h-full w-full object-cover" onerror="this.style.opacity=0.2">';
       cell.onclick = () => selectMedia(m, cell);
