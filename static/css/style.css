@@ -2007,6 +2007,10 @@ a.review-board__item:hover {
 
 .site-footer__admin {
     font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
 }
 
 .site-footer__dashboard {
@@ -2018,6 +2022,58 @@ a.review-board__item:hover {
     font-size: 1.1rem;
     text-decoration: none;
     border-radius: 8px;
+}
+
+/* 개인정보처리방침 등 약관 문서 */
+.legal-doc {
+    max-width: 760px;
+    margin: 2.5rem auto;
+    padding: 0 0.5rem;
+    line-height: 1.75;
+    word-break: keep-all;
+}
+
+.legal-doc__title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin-bottom: 0.35rem;
+}
+
+.legal-doc__updated {
+    opacity: 0.65;
+    font-size: 0.9rem;
+    margin-bottom: 1.75rem;
+}
+
+.legal-doc__intro {
+    margin-bottom: 2rem;
+}
+
+.legal-doc__section {
+    margin-bottom: 1.75rem;
+}
+
+.legal-doc__section h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+}
+
+.legal-doc__section ul {
+    padding-left: 1.2rem;
+    margin: 0;
+}
+
+.legal-doc__section li {
+    margin-bottom: 0.4rem;
+}
+
+.legal-doc__note {
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(128, 128, 128, 0.25);
+    font-size: 0.9rem;
+    opacity: 0.7;
 }
 
 /* 좁은 화면: 가로형 랭킹·2열 상품 유지, 히어로만 미세 조정 */

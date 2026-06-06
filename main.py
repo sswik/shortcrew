@@ -461,6 +461,12 @@ def about_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "about.html", _client_theme_context())
 
 
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy(request: Request) -> HTMLResponse:
+    """개인정보처리방침(임시). Meta 앱 검수 제출용 공개 URL. catch-all 앞에 등록."""
+    return templates.TemplateResponse(request, "privacy.html", _client_theme_context())
+
+
 @app.get("/shop/{path_slug}", response_class=HTMLResponse, response_model=None)
 def shop_legacy_redirect(path_slug: str, db: Session = Depends(get_db)) -> Response:
     """레거시 `/shop/{slug}` → `/{name_slug}` (301)."""
