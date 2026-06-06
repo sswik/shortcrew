@@ -89,9 +89,11 @@
 
   // ---- 상품 로드 ----
   function loadProducts(cid) {
-    productSel.innerHTML = '<option value="">-- 채널 상품에서 선택 --</option>';
+    productSel.innerHTML = '<option value="">상품 불러오는 중…</option>';
     jget("/api/mall-products?channel_id=" + encodeURIComponent(cid)).then((data) => {
       const arr = Array.isArray(data) ? data : (data.products || data.items || []);
+      productSel.innerHTML = '<option value="">-- 채널 상품에서 선택 --</option>';
+      let count = 0;
       arr.forEach((p, i) => {
         const name = p.name || p.productName || p.title || p["상품명"] || ("상품 " + (i + 1));
         const link = p.deepLink || p.productUrl || p.link || "";
@@ -101,8 +103,14 @@
         o.dataset.title = name;
         o.textContent = name.length > 40 ? name.slice(0, 40) + "…" : name;
         productSel.appendChild(o);
+        count++;
       });
-    }).catch(() => {});
+      if (count === 0) {
+        productSel.innerHTML = '<option value="">이 채널에 등록된 상품이 없습니다</option>';
+      }
+    }).catch(() => {
+      productSel.innerHTML = '<option value="">상품을 불러오지 못했습니다 — 잠시 후 다시 시도</option>';
+    });
   }
 
   // ---- 게시물(미디어) ----
