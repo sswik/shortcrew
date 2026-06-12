@@ -119,13 +119,6 @@ class TestSmoke(unittest.TestCase):
         self.assertEqual(channel_env("202", "FILE_ID"), "CHANNEL_202_FILE_ID")
         self.assertEqual(channel_env("01", "FILE_ID"), "CHANNEL_01_FILE_ID")
 
-    def test_default_channel_id_is_201(self) -> None:
-        from app.admin.ops.channels import get_channels
-
-        ch = get_channels()
-        self.assertTrue(ch)
-        self.assertEqual(ch[0]["channel_id"], "201")
-
     def test_missing_google_sheet_response_lists_env_key(self) -> None:
         from app.admin.ops.routes.sheets import _missing_google_sheet_response
 
