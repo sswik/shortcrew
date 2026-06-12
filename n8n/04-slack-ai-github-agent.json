@@ -1,0 +1,267 @@
+{
+  "name": "PM 어시스턴트 (AI Agent)",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "안녕하세요! PM 어시스턴트입니다.\nGitHub 프로젝트 현황을 자연어로 질문해 보세요.\n\n예시:\n- 이번 주 완료된 이슈 알려줘\n- 마일스톤 현황 보여줘\n- W3 기획설계 이슈 목록",
+        "options": {}
+      },
+      "id": "chat-trigger",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [200, 300],
+      "webhookId": "pm-assistant-chat"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "당신은 프로젝트 PM 어시스턴트입니다.\nGitHub API 도구를 활용하여 프로젝트 현황을 한국어로 답변합니다.\n\n[프로젝트 정보]\n- 저장소: {owner}/{repo}\n- 5주 프로젝트 (W1 환경구축 ~ W5 검수배포)\n- 마일스톤: M1(환경구축,#1), M2(관리착수,#2), M3(기획설계,#3), M4(구현개발,#4), M5(검수배포,#5)\n- 라벨: W1~W5 (주차), document/code/infra (유형)\n\n[도구 사용 가이드]\n- issues: 이슈 조회. query string으로 state, labels, milestone 필터 가능\n- milestones: 마일스톤 현황 조회. 완료율 = closed_issues/(open_issues+closed_issues)*100\n- repo: 저장소 기본 정보\n\n[답변 규칙]\n1. 한국어로 간결하게 답변\n2. 숫자/통계 명확히\n3. 이슈: #번호 제목\n4. 마일스톤: 완료율(%)\n5. 날짜: YYYY-MM-DD 형식"
+        }
+      },
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "gemini-llm",
+      "name": "Google Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [300, 520],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "",
+          "name": "Google Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "pm-session",
+        "contextWindowLength": 10
+      },
+      "id": "memory",
+      "name": "Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [420, 520]
+    },
+    {
+      "parameters": {
+        "toolDescription": "GitHub 이슈 목록을 조회합니다. state, labels, milestone 파라미터로 필터링할 수 있습니다.",
+        "method": "GET",
+        "url": "https://api.github.com/repos/{owner}/{repo}/issues",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "={{ $fromAI('state', 'Issue state filter: open, closed, or all. Default: open', 'string') }}"
+            },
+            {
+              "name": "labels",
+              "value": "={{ $fromAI('labels', 'Comma-separated label filter: W1,W2,W3,W4,W5,document,code,infra. Empty for no filter', 'string') }}"
+            },
+            {
+              "name": "milestone",
+              "value": "={{ $fromAI('milestone', 'Milestone number 1-5, or * for all milestones. Empty for no filter', 'string') }}"
+            },
+            {
+              "name": "per_page",
+              "value": "100"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "maxLength": 4000
+      },
+      "id": "tool-issues",
+      "name": "Tool: Issues",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [540, 520],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "프로젝트 마일스톤(M1~M5) 현황을 조회합니다. 각 마일스톤의 title, due_on, open_issues, closed_issues를 반환합니다.",
+        "method": "GET",
+        "url": "https://api.github.com/repos/{owner}/{repo}/milestones",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "={{ $fromAI('state', 'Milestone state filter: open, closed, or all. Default: all', 'string') }}"
+            },
+            {
+              "name": "per_page",
+              "value": "10"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "maxLength": 2000
+      },
+      "id": "tool-milestones",
+      "name": "Tool: Milestones",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [660, 520],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "저장소의 기본 정보를 조회합니다. 이름, 설명, 스타, 포크, 최근 푸시 시간, 기본 브랜치 등을 반환합니다.",
+        "method": "GET",
+        "url": "https://api.github.com/repos/{owner}/{repo}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.v3+json"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "maxLength": 1000
+      },
+      "id": "tool-repo",
+      "name": "Tool: Repo Info",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [780, 520],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub API Token"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Issues": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Milestones": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Repo Info": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "AP-Framework"
+    },
+    {
+      "name": "AI-Agent"
+    },
+    {
+      "name": "GitHub"
+    }
+  ]
+}

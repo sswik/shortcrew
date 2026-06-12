@@ -4,7 +4,7 @@
 
 ## ShortCrew V2 — Admin Tailwind
 
-- [_admin_tailwind_config.html](../app/admin/templates/_admin_tailwind_config.html): **진한 하늘색 primary** (`#0369a1` 기준 50–900), 다크 surface·앰버 보조
+- [_admin_tailwind_config.html](../app/admin/templates/_admin_tailwind_config.html): **시안 primary** (`#00C2D1` 기준 50–900), 다크 차콜 surface·앰버 보조 — 클라이언트 V2와 색감 통일
 - [layout.html](../app/admin/templates/layout.html), [login.html](../app/admin/templates/login.html): 인라인 `tailwind.config` 제거 → `{% include "_admin_tailwind_config.html" %}`
 - favicon: `/static/images/brand/logo.png`
 
@@ -51,5 +51,5 @@
 
 ## 연계
 
-- 공개 UI V2: [08_CLIENT_UI_REBRAND.md](08_CLIENT_UI_REBRAND.md), [05_CLIENT_UI_OVERHAUL.md](05_CLIENT_UI_OVERHAUL.md)
+- 공개 UI V2: [05_클라이언트UI.md](05_클라이언트UI.md), [05_클라이언트UI.md](05_클라이언트UI.md)
 - 클릭 API: `POST /api/click`

@@ -5,7 +5,7 @@
 2. 아래 `_CHANNEL_ID` 와 `name`, `naver_category_id`, `trend_keywords` 등을 채운다.
 3. `registry.py` 에서 `from .roster import channel_202` 후 `CHANNEL_BUILDERS` 튜플에 `channel_202.build` 를 추가한다.
 4. `.env` 키는 `CHANNEL_{channel_id}_*` (예: id 가 `202` → `CHANNEL_202_FILE_ID`, `CHANNEL_202_PRODUCT_DELIVERY_WEBAPP_URL`; 몰 GET URL은 선택 `CHANNEL_202_MALL_PRODUCTS_API_URL`).
-5. 쇼츠 시트 트리거 리뷰 자동화를 쓰려면 `roster/shopping.py` 와 동일한 `shorts_*` 키를 `build()` 에 넣고 `CHANNEL_*_SHORTS_*` env 를 채운다. (`docs/06_SHORTS_SHEET_REVIEWS.md`)
+5. 쇼츠 시트 트리거 리뷰 자동화를 쓰려면 `roster/shopping.py` 와 동일한 `shorts_*` 키를 `build()` 에 넣고 `CHANNEL_*_SHORTS_*` env 를 채운다. (`06.운영가이드/06_쇼츠시트리뷰자동화.md`)
 
 이 모듈은 `CHANNEL_BUILDERS` 에 **등록하지 않는다**.
 """

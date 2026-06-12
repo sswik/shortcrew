@@ -17,7 +17,7 @@
 
 필요: ``.env`` 의 ``GOOGLE_GEMINI_KEY``, ``YOUTUBE_API_KEY``, ``google-key.json``, 채널별 시트 env.
 
-**매일 한 번(한국 자정)** cron 예시는 ``docs/06_SHORTS_SHEET_REVIEWS.md`` 참고.
+**매일 한 번(한국 자정)** cron 예시는 ``06.운영가이드/06_쇼츠시트리뷰자동화.md`` 참고.
 """
 from __future__ import annotations
 

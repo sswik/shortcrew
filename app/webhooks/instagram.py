@@ -1,4 +1,4 @@
-"""인스타그램 댓글 → 자동 DM(비공개 답장) + 공개 답글 웹훅. docs/09 참고.
+"""인스타그램 댓글 → 자동 DM(비공개 답장) + 공개 답글 웹훅. 06.운영가이드/08_인스타댓글자동DM.md 참고.
 
 - GET  /webhooks/instagram : 콜백 등록 검증(hub.challenge 에코)
 - POST /webhooks/instagram : 댓글 이벤트 수신 → 서명 검증 → 규칙(dm_automations) 매칭 → 공개 답글 + 비공개 DM
@@ -96,7 +96,7 @@ def _match_rule(db, channel_id: str, media_id: str, text: str) -> DmAutomation |
                 if r.ig_media_id != media_id:
                     continue
             else:
-                # 다음 발행 게시물 자동: 첫 댓글 게시물에 1회 바인딩(정밀 baseline은 docs/09 C-8).
+                # 다음 발행 게시물 자동: 첫 댓글 게시물에 1회 바인딩(정밀 baseline은 06.운영가이드/08_인스타댓글자동DM.md C-8).
                 if not media_id:
                     continue
                 r.ig_media_id = media_id

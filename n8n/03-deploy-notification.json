@@ -1,0 +1,56 @@
+{
+  "name": "배포 완료 -> Slack 알림",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deploy-notification",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Deploy Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $credentials.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"배포 알림\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"{{ $json.status === 'success' ? '배포 완료' : '배포 실패' }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*저장소*: {{ $json.repo }}\\n*브랜치*: {{ $json.ref }}\\n*상태*: {{ $json.status === 'success' ? '성공' : '실패' }}\\n*시간*: {{ $now.toFormat('yyyy-MM-dd HH:mm') }}\"\n      }\n    }\n  ]\n}"
+      },
+      "id": "slack-notify",
+      "name": "Slack: Deploy Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: Deploy Event": {
+      "main": [
+        [
+          {
+            "node": "Slack: Deploy Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "EDU-100"
+    },
+    {
+      "name": "Week5"
+    }
+  ]
+}

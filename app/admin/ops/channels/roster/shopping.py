@@ -57,7 +57,7 @@ def build() -> dict:
             "쿠팡추천",
         ],
         "monitor_keywords": [],
-        # --- 쇼츠 시트 트리거 리뷰 자동화 (docs/06 참고) ---
+        # --- 쇼츠 시트 트리거 리뷰 자동화 (06.운영가이드/06_쇼츠시트리뷰자동화.md 참고) ---
         "shorts_automation_enabled": _env_truthy(channel_env(_CID, "SHORTS_AUTOMATION_ENABLED")),
         "shorts_plan_tab": os.getenv(channel_env(_CID, "SHORTS_PLAN_TAB"), "").strip(),
         "shorts_product_tab": os.getenv(channel_env(_CID, "SHORTS_PRODUCT_TAB"), "").strip(),

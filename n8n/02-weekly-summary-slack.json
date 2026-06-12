@@ -1,0 +1,118 @@
+{
+  "name": "주간 요약 -> Slack 전송",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Schedule: Every Friday 5PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $credentials.githubOwner }}/{{ $credentials.githubRepo }}/issues",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "all"
+            },
+            {
+              "name": "since",
+              "value": "={{ $now.minus({days: 7}).toISO() }}"
+            }
+          ]
+        }
+      },
+      "id": "github-issues",
+      "name": "GitHub: Get Weekly Issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const issues = $input.all().map(i => i.json);\nconst open = issues.filter(i => i.state === 'open').length;\nconst closed = issues.filter(i => i.state === 'closed').length;\nconst total = issues.length;\n\nconst issueList = issues.slice(0, 10).map(i => \n  `- ${i.state === 'open' ? '[열림]' : '[완료]'} #${i.number} ${i.title}`\n).join('\\n');\n\nreturn [{\n  json: {\n    summary: `이번 주 이슈 현황: 총 ${total}건 (열림 ${open} / 완료 ${closed})`,\n    issueList: issueList || '이번 주 이슈 없음',\n    open,\n    closed,\n    total\n  }\n}];"
+      },
+      "id": "summarize",
+      "name": "Code: Summarize Issues",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $credentials.slackWebhookUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"주간 프로젝트 요약\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"주간 프로젝트 요약 (금주)\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"{{ $json.summary }}\\n\\n{{ $json.issueList }}\"\n      }\n    }\n  ]\n}"
+      },
+      "id": "slack-send",
+      "name": "Slack: Send Weekly Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 300]
+    }
+  ],
+  "connections": {
+    "Schedule: Every Friday 5PM": {
+      "main": [
+        [
+          {
+            "node": "GitHub: Get Weekly Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: Get Weekly Issues": {
+      "main": [
+        [
+          {
+            "node": "Code: Summarize Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Summarize Issues": {
+      "main": [
+        [
+          {
+            "node": "Slack: Send Weekly Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "EDU-100"
+    },
+    {
+      "name": "Week2"
+    }
+  ]
+}

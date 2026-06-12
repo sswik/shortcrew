@@ -33,3 +33,9 @@ database.db
 # 구버전 잔여 데이터 폴더(정리 전 임시)
 data/
 sample/
+
+# AP-Framework 서비스 키 (실제값) — template 은 커밋
+.AP-key.md
+
+# n8n 실제 워크플로우 export (자동화 작업용 보관 — 시크릿 포함 가능, 추적 제외)
+n8n-sample/

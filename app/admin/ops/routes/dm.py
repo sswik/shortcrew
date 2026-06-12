@@ -1,4 +1,4 @@
-"""인스타 댓글 → 자동 DM 규칙 CRUD + 게시물 불러오기(Graph 프록시). docs/09 C 참고.
+"""인스타 댓글 → 자동 DM 규칙 CRUD + 게시물 불러오기(Graph 프록시). 06.운영가이드/08_인스타댓글자동DM.md C 참고.
 
 상품 목록은 별도 API 없이 프론트가 기존 `/api/mall-products?channel_id=` 를 재사용한다.
 토큰은 채널 dict 에 넣지 않고 `CHANNEL_{ID}_IG_*` env 에서 직접 읽으며, 클라이언트로 내려보내지 않는다.

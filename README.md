@@ -22,7 +22,11 @@ shortcrew/
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
-├── docs/                   # 운영·개발 가이드 (예: docs/01_CHANNEL_GUIDE.md)
+├── PRD.md / .progress.md / CLAUDE.md   # AP-Framework 문서체계 (개요·진행·규칙)
+├── 00.통합자료실/ … 05.리포트/          # 산출물 문서체인 (관리·기획·구현·검수·리포트)
+├── 06.운영가이드/            # 운영 상세 가이드 (채널/시트/쇼츠/인스타 DM/브리지)
+├── n8n/                    # n8n 워크플로우 템플릿
+├── prompts/                # Claude Code 프롬프트 라이브러리
 ├── tests/                  # 플랜 7단계 스모크 (test_smoke.py)
 ├── static/                 # 공통 CSS/JS/이미지 (`js/admin-products.js` — 상품 관리 콘솔)
 │   ├── css/style.css
@@ -76,7 +80,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8028
 2. [.env.example](.env.example)에 나열된 키만 채운다(실제 비밀·키는 커밋하지 않음).
 3. 구글 시트 API는 **루트 `google-key.json`**(서비스 계정 JSON)이 있어야 한다. `GOOGLE_SERVICE_ACCOUNT_JSON` 은 `/admin/sheets` 화면 표시용으로만 쓰인다.
 
-백오피스·채널·Ops API 키 설명은 `.env.example` 주석과 아래「백오피스 인증」·[docs/01_CHANNEL_GUIDE.md](docs/01_CHANNEL_GUIDE.md)를 병행하면 된다.
+백오피스·채널·Ops API 키 설명은 `.env.example` 주석과 아래「백오피스 인증」·[06.운영가이드/01_채널추가가이드.md](06.운영가이드/01_채널추가가이드.md)를 병행하면 된다.
 
 ## 통합 스모크 (플랜 7단계)
 
@@ -128,7 +132,12 @@ python3 -m unittest tests.test_smoke -v
 ### 운영 JSON API
 
 - 마운트 prefix: `/admin/api/ops` (예: `GET /admin/api/ops/channels`)
-- 채널 추가 절차: [docs/01_CHANNEL_GUIDE.md](docs/01_CHANNEL_GUIDE.md)
+- 채널 추가 절차: [06.운영가이드/01_채널추가가이드.md](06.운영가이드/01_채널추가가이드.md)
+
+## 문서 / 산출물
+
+- 개요·목표·산출물 인덱스: [PRD.md](PRD.md) · 진행 추적: [.progress.md](.progress.md) · 작업 규칙: [CLAUDE.md](CLAUDE.md)
+- 운영 상세 가이드(`06.운영가이드/`): [채널추가](06.운영가이드/01_채널추가가이드.md) · [시트딥링크](06.운영가이드/02_시트딥링크미리보기.md) · [공개몰·파트너스](06.운영가이드/03_공개몰파트너스링크.md) · [백오피스UI·env](06.운영가이드/04_백오피스UI환경SQLite.md) · [클라이언트UI](06.운영가이드/05_클라이언트UI.md) · [쇼츠시트리뷰자동화](06.운영가이드/06_쇼츠시트리뷰자동화.md) · [쇼츠자동화진단](06.운영가이드/07_쇼츠자동화진단교정.md) · [인스타댓글→DM](06.운영가이드/08_인스타댓글자동DM.md) · [쇼츠-커머스 브리지 설계](06.운영가이드/09_쇼츠커머스브리지설계.md)
 
 ## 딥링크 정책 메모
 
