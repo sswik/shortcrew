@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-import random
 import time
 from threading import Lock
-from datetime import date, timezone
+from datetime import timezone
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
@@ -18,7 +17,7 @@ import httpx
 _ROOT = Path(__file__).resolve().parent
 
 
-from app.core.config import KST, load_env, normalize_site_base
+from app.core.config import KST, load_env
 
 load_env()  # 이후 모듈들이 os.environ 을 읽기 전에 .env 로드
 
@@ -42,10 +41,8 @@ from app.admin.auth import (
 )
 from app.admin.ops.api_router import router as ops_api_router
 from app.webhooks.instagram import router as ig_webhook_router
-from app.client.mall_sheet import resolve_mall_products_api
-from app.client.profile_display import format_cue_card_tagline
+from app.client.routes import router as client_router
 from app.client.mall_theme import (
-    parse_profile_meta_json,
     validate_mall_theme_json,
     validate_profile_meta_json,
 )
@@ -60,9 +57,7 @@ from app.core.templates import templates
 from app.core.helpers import (
     _ellipsis_middle,
     _ua_os_browser,
-    enrich_coupang_url_for_public,
 )
-from app.core.theme import _client_theme_context
 from app.core.access_log import AccessDetailLogMiddleware
 from app.core.errors import register_error_handlers
 
@@ -130,171 +125,6 @@ run_migrations()
 app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
 register_error_handlers(app)
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    influencers = db.scalars(select(Influencer).order_by(Influencer.display_name)).all()
-    ctx = _client_theme_context()
-    ctx["influencers"] = influencers
-    ctx["influencers_profile_meta"] = {
-        inf.name_slug: parse_profile_meta_json(inf.profile_meta_json) for inf in influencers
-    }
-    ctx["influencers_cue_tagline"] = {
-        inf.name_slug: format_cue_card_tagline(
-            inf.display_name,
-            inf.name_slug,
-            ctx["influencers_profile_meta"].get(inf.name_slug),
-        )
-        for inf in influencers
-    }
-    return templates.TemplateResponse(request, "home.html", ctx)
-
-
-@app.get("/about", response_class=HTMLResponse)
-def about_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "about.html", _client_theme_context())
-
-
-@app.get("/privacy", response_class=HTMLResponse)
-def privacy(request: Request) -> HTMLResponse:
-    """개인정보처리방침(임시). Meta 앱 검수 제출용 공개 URL. catch-all 앞에 등록."""
-    return templates.TemplateResponse(request, "privacy.html", _client_theme_context())
-
-
-@app.get("/shop/{path_slug}", response_class=HTMLResponse, response_model=None)
-def shop_legacy_redirect(path_slug: str, db: Session = Depends(get_db)) -> Response:
-    """레거시 `/shop/{slug}` → `/{name_slug}` (301)."""
-    path_slug = (path_slug or "").strip()
-    if not path_slug:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    influencer = db.scalar(select(Influencer).where(Influencer.shop_path_slug == path_slug))
-    if influencer is None:
-        influencer = db.scalar(select(Influencer).where(Influencer.name_slug == path_slug))
-    if influencer is None:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    name_slug = (influencer.name_slug or "").strip()
-    if not name_slug:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    return RedirectResponse(url=f"/{quote(name_slug, safe='')}", status_code=301)
-
-
-@app.get("/api/mall-products", response_model=None)
-def api_mall_products(channel_id: str = "") -> Response:
-    """Apps Script 상품 JSON 을 서버가 대신 받아 돌려준다(브라우저 CORS 회피).
-
-    `channel_id` 는 roster 의 `channel_id`(예: 201)로 채널을 고르고, 웹앱에 붙는 `?channel=` 값은
-    `MALL_PRODUCTS_CHANNEL_PARAM`(비우면 `201`과 동일) — 샘플 short-mall-template 의 `APPS_SCRIPT_CHANNEL` 과 맞출 것.
-    """
-    from app.admin.ops.channels import get_channels
-
-    cid = (channel_id or "").strip()
-    if not cid:
-        raise HTTPException(status_code=400, detail="channel_id required")
-
-    now = time.monotonic()
-    with _mall_products_cache_lock:
-        cached = _mall_products_cache.get(cid)
-    if cached is not None:
-        expires_at, cached_content, cached_media_type = cached
-        if expires_at > now:
-            return Response(content=cached_content, media_type=cached_media_type)
-        with _mall_products_cache_lock:
-            current = _mall_products_cache.get(cid)
-            if current is not None and current[0] <= now:
-                _mall_products_cache.pop(cid, None)
-
-    channel = next((c for c in get_channels() if c.get("channel_id") == cid), None)
-    if channel is None:
-        raise HTTPException(status_code=404, detail="channel not found")
-    base = (channel.get("mall_products_api_url") or "").strip()
-    if not base:
-        raise HTTPException(status_code=503, detail="mall_products_api_url not configured")
-    chan_q = (channel.get("mall_products_channel_param") or "").strip() or cid
-    sep = "?" if "?" not in base else "&"
-    target = f"{base}{sep}channel={quote(chan_q, safe='')}"
-    headers = {
-        "Accept": "application/json, text/plain;q=0.9,*/*;q=0.8",
-        "User-Agent": "Shortcrew/1.0 mall-products-proxy",
-    }
-    try:
-        with httpx.Client(timeout=45.0, follow_redirects=True) as client:
-            resp = client.get(target, headers=headers)
-    except httpx.RequestError as e:
-        logger.warning("mall_products_proxy request_error url=%s err=%s", target[:160], e)
-        raise HTTPException(status_code=502, detail=f"upstream request failed: {e!s}") from e
-
-    ct_lower = (resp.headers.get("content-type") or "").lower()
-    body_preview = (resp.text or "")[:500].replace("\n", " ")
-
-    if resp.status_code >= 400:
-        logger.warning(
-            "mall_products_proxy bad_status=%s ct=%s body=%s",
-            resp.status_code,
-            ct_lower,
-            body_preview,
-        )
-        raise HTTPException(
-            status_code=502,
-            detail=f"upstream HTTP {resp.status_code}: {body_preview}",
-        )
-    if "text/html" in ct_lower and (resp.text or "").lstrip().lower().startswith("<!doctype"):
-        logger.warning("mall_products_proxy got html url=%s", target[:160])
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "웹앱이 HTML을 돌려줬습니다(JSON 아님). 배포 '실행 URL'·액세스 '누구나'·"
-                "CHANNEL_*_MALL_PRODUCTS_CHANNEL_PARAM(샘플 config 의 ?channel= 값) 확인."
-            ),
-        )
-
-    ct = (resp.headers.get("content-type") or "application/json").split(";", 1)[0].strip()
-    media_type = ct or "application/json"
-
-    body = resp.content
-    try:
-        items = json.loads(body)
-        if isinstance(items, list) and len(items) > 1:
-            random.Random(str(date.today())).shuffle(items)
-            body = json.dumps(items, ensure_ascii=False).encode()
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    with _mall_products_cache_lock:
-        _mall_products_cache[cid] = (
-            time.monotonic() + max(1.0, _MALL_PRODUCTS_CACHE_TTL_SECONDS),
-            body,
-            media_type,
-        )
-    return Response(content=body, media_type=media_type)
-
-
-@app.get("/reviews/{name_slug}", response_class=HTMLResponse)
-def review_list_legacy_redirect(name_slug: str, db: Session = Depends(get_db)) -> Response:
-    """레거시 `/reviews/{slug}` → `/{slug}/review` (301)."""
-    name_slug = (name_slug or "").strip()
-    if not name_slug or not db.scalar(select(Influencer).where(Influencer.name_slug == name_slug)):
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    return RedirectResponse(url=f"/{quote(name_slug, safe='')}/review", status_code=301)
-
-
-@app.get("/reviews/{name_slug}/{review_id:int}", response_class=HTMLResponse)
-def review_detail_legacy_redirect(name_slug: str, review_id: int, db: Session = Depends(get_db)) -> Response:
-    """레거시 `/reviews/{slug}/{id}` → `/{slug}/review/{id}` (301)."""
-    name_slug = (name_slug or "").strip()
-    if not name_slug or not db.scalar(select(Influencer).where(Influencer.name_slug == name_slug)):
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    if not db.scalar(select(Review.id).where(Review.id == review_id, Review.influencer_slug == name_slug)):
-        raise HTTPException(status_code=404, detail="리뷰를 찾을 수 없습니다.")
-    return RedirectResponse(
-        url=f"/{quote(name_slug, safe='')}/review/{review_id}",
-        status_code=301,
-    )
 
 
 @app.get("/admin/login", response_model=None)
@@ -893,239 +723,4 @@ def admin_logs(
     )
 
 
-@app.post("/api/click")
-def api_click(
-    influencer_slug: str = Form(""),
-    pump_slug: str = Form(""),
-    legacy_pump_slug: str = Form(""),
-    product_id: str = Form(...),
-    product_name: str | None = Form(default=None),
-    deep_link: str | None = Form(default=None),
-    client_user_agent: str | None = Form(default=None),
-    page_url: str | None = Form(default=None),
-    referrer_snapshot: str | None = Form(default=None),
-    db: Session = Depends(get_db),
-) -> dict[str, str]:
-    normalized_influencer_slug = (influencer_slug or "").strip()
-    normalized_pump_slug = (pump_slug or "").strip()
-    normalized_legacy_pump_slug = (legacy_pump_slug or "").strip()
-    resolved_influencer = (
-        normalized_influencer_slug
-        or normalized_pump_slug
-        or normalized_legacy_pump_slug
-    )
-    if not resolved_influencer:
-        raise HTTPException(status_code=400, detail="influencer_slug required")
-    if not normalized_influencer_slug and (normalized_pump_slug or normalized_legacy_pump_slug):
-        logger.info(
-            "api_click legacy pump_slug fallback used: influencer_slug=%s",
-            resolved_influencer,
-        )
-    raw_product_ref = (product_id or "").strip()[:120]
-    raw = raw_product_ref.split(".", 1)[0][:32]
-    product_name_snapshot = (product_name or "").strip()[:255] or None
-    deep_link_snapshot = (deep_link or "").strip()[:1200] or None
-    ua_snap = (client_user_agent or "").strip()[:512] or None
-    page_snap = (page_url or "").strip()[:800] or None
-    ref_snap = (referrer_snapshot or "").strip()[:600] or None
-    try:
-        pid = int(raw) if raw else 0
-    except ValueError:
-        pid = 0
-    db.add(
-        ClickLog(
-            influencer_slug=resolved_influencer,
-            product_id=pid,
-            raw_product_ref=raw_product_ref or None,
-            product_name_snapshot=product_name_snapshot,
-            deep_link_snapshot=deep_link_snapshot,
-            client_user_agent=ua_snap,
-            page_url=page_snap,
-            referrer_snapshot=ref_snap,
-        )
-    )
-    db.commit()
-    return {"ok": "1"}
-
-
-# ----- 공개 인플 허브 `/{name_slug}` (admin·api 등 고정 라우트보다 반드시 아래에 둔다) -----
-
-_RESERVED_PUBLIC_SLUGS = frozenset(
-    {
-        "about",
-        "api",
-        "static",
-        "health",
-    },
-)
-
-
-def _public_slug_is_reserved(slug: str) -> bool:
-    """`/docs`, `/openapi.json` 등은 FastAPI가 먼저 등록하므로 여기서는 짧은 시스템 단어만 막는다."""
-    s = (slug or "").strip().lower()
-    if not s:
-        return True
-    if s in _RESERVED_PUBLIC_SLUGS:
-        return True
-    return False
-
-
-def _influencer_hub_page(
-    request: Request,
-    db: Session,
-    *,
-    influencer: Influencer,
-    hub_tab: str,
-) -> HTMLResponse:
-    if hub_tab not in ("products", "reviews", "channel"):
-        hub_tab = "products"
-    name_slug = influencer.name_slug
-    shop_path = (influencer.shop_path_slug or "").strip()
-    mall_api_url, mall_channel_id = resolve_mall_products_api(
-        name_slug,
-        shop_path or None,
-    )
-    worker = (os.environ.get("COUPANG_IMAGE_WORKER_BASE") or "").strip().rstrip("/")
-    if not worker:
-        worker = _DEFAULT_COUPANG_IMAGE_WORKER.strip().rstrip("/")
-    mall_fetch_url = ""
-    if mall_api_url and mall_channel_id:
-        public_base = normalize_site_base(os.environ.get("PUBLIC_SITE_URL") or "")
-        if not public_base:
-            public_base = str(request.base_url).rstrip("/")
-        mall_fetch_url = f"{public_base}/api/mall-products?channel_id={quote(mall_channel_id, safe='')}"
-    partners_lptag = (
-        (os.environ.get("COUPANG_PARTNERS_LPTAG") or os.environ.get("COUPANG_LPTAG") or "")
-        .strip()
-    )
-    shop_page_config = {
-        "mallProductsFetchUrl": mall_fetch_url,
-        "mallProductsApiUrl": mall_api_url,
-        "mallApiChannel": mall_channel_id,
-        "coupangImageWorkerBase": worker + "/",
-        "influencerSlug": name_slug,
-        "coupangPartnersLptag": partners_lptag,
-    }
-    reviews = db.scalars(
-        select(Review)
-        .where(Review.influencer_slug == name_slug)
-        .order_by(Review.created_at.desc())
-    ).all()
-    ctx = _client_theme_context(influencer)
-    ctx.update(
-        {
-            "influencer": influencer,
-            "shop_page_config": shop_page_config,
-            "reviews": reviews,
-            "hub_tab": hub_tab,
-        }
-    )
-    return templates.TemplateResponse(request, "shop.html", ctx)
-
-
-@app.get("/{name_slug}/review/{review_id:int}", response_class=HTMLResponse)
-def public_review_detail(
-    request: Request,
-    name_slug: str,
-    review_id: int,
-    db: Session = Depends(get_db),
-) -> HTMLResponse:
-    if _public_slug_is_reserved(name_slug):
-        raise HTTPException(status_code=404, detail="Not Found")
-    influencer = db.scalar(select(Influencer).where(Influencer.name_slug == name_slug))
-    if influencer is None:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    review = db.scalar(
-        select(Review)
-        .where(Review.id == review_id, Review.influencer_slug == name_slug)
-        .options(joinedload(Review.product))
-    )
-    if review is None:
-        raise HTTPException(status_code=404, detail="리뷰를 찾을 수 없습니다.")
-    partners_lptag = (
-        (os.environ.get("COUPANG_PARTNERS_LPTAG") or os.environ.get("COUPANG_LPTAG") or "")
-        .strip()
-    )
-    buy_url = ""
-    if review.product_id and review.product and (review.product.coupang_url or "").strip():
-        buy_url = enrich_coupang_url_for_public(
-            review.product.coupang_url,
-            lptag=partners_lptag,
-        )
-    elif (review.sheet_product_deeplink or "").strip():
-        buy_url = enrich_coupang_url_for_public(
-            (review.sheet_product_deeplink or "").strip(),
-            lptag=partners_lptag,
-        )
-    review_body_html, shorts_deeplink = split_shorts_review_cta(review.content or "")
-    logger.info(
-        "review_public_view id=%s path_slug=%s influencer_slug=%s product_id=%s "
-        "content_chars=%s body_chars_after_cta_strip=%s footer_shorts_deeplink=%s "
-        "mall_buy_url=%s",
-        review.id,
-        name_slug,
-        review.influencer_slug,
-        review.product_id,
-        len(review.content or ""),
-        len(review_body_html or ""),
-        "yes" if shorts_deeplink else "no",
-        "yes" if buy_url else "no",
-    )
-    ctx = _client_theme_context(influencer)
-    ctx.update(
-        {
-            "influencer": influencer,
-            "review": review,
-            "buy_url": buy_url,
-            "review_body_html": review_body_html,
-            "shorts_deeplink": shorts_deeplink,
-        }
-    )
-    return templates.TemplateResponse(request, "review_detail.html", ctx)
-
-
-@app.get("/{name_slug}/review", response_class=HTMLResponse)
-def public_influencer_reviews_tab(
-    request: Request,
-    name_slug: str,
-    db: Session = Depends(get_db),
-) -> HTMLResponse:
-    if _public_slug_is_reserved(name_slug):
-        raise HTTPException(status_code=404, detail="Not Found")
-    influencer = db.scalar(select(Influencer).where(Influencer.name_slug == name_slug))
-    if influencer is None:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    return _influencer_hub_page(request, db, influencer=influencer, hub_tab="reviews")
-
-
-@app.get("/{name_slug}/introduce", response_class=HTMLResponse)
-def public_influencer_introduce_tab(
-    request: Request,
-    name_slug: str,
-    db: Session = Depends(get_db),
-) -> HTMLResponse:
-    if _public_slug_is_reserved(name_slug):
-        raise HTTPException(status_code=404, detail="Not Found")
-    influencer = db.scalar(select(Influencer).where(Influencer.name_slug == name_slug))
-    if influencer is None:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    return _influencer_hub_page(request, db, influencer=influencer, hub_tab="channel")
-
-
-@app.get("/{name_slug}", response_class=HTMLResponse, response_model=None)
-def public_influencer_hub(
-    request: Request,
-    name_slug: str,
-    db: Session = Depends(get_db),
-) -> Response | HTMLResponse:
-    ns = (name_slug or "").strip()
-    if not ns:
-        raise HTTPException(status_code=404, detail="Not Found")
-    if ns.lower() == "admin":
-        return RedirectResponse(url="/admin/login", status_code=302)
-    if _public_slug_is_reserved(ns):
-        raise HTTPException(status_code=404, detail="Not Found")
-    influencer = db.scalar(select(Influencer).where(Influencer.name_slug == ns))
-    if influencer is None:
-        raise HTTPException(status_code=404, detail="인플루언서를 찾을 수 없습니다.")
-    return _influencer_hub_page(request, db, influencer=influencer, hub_tab="products")
+app.include_router(client_router)
