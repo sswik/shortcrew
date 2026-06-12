@@ -129,6 +129,31 @@ class TestSmoke(unittest.TestCase):
         self.assertIn("CHANNEL_201_FILE_ID", err)
         self.assertIn("201", err)
 
+    def test_mall_products_requires_channel(self) -> None:
+        """`/api/mall-products` 는 channel_id 없으면 400(네트워크 호출 전 차단)."""
+        r = self.client.get("/api/mall-products")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("channel_id", (r.json().get("detail") or ""))
+
+    def test_routes_snapshot_unchanged(self) -> None:
+        """main.py 분해(리팩토링) 시 라우트 집합이 바뀌지 않는지 고정.
+        의도적으로 라우트를 추가/변경하면 tests/routes_snapshot.txt 도 함께 갱신한다."""
+        import os
+
+        snap = os.path.join(os.path.dirname(__file__), "routes_snapshot.txt")
+        with open(snap, encoding="utf-8") as f:
+            expected = {ln.strip() for ln in f if ln.strip()}
+        current = set()
+        for route in self._main.app.routes:
+            path = getattr(route, "path", None)
+            if path is None:
+                continue
+            methods = sorted(getattr(route, "methods", None) or [])
+            current.add(f"{path} [{','.join(methods)}]")
+        missing = sorted(expected - current)
+        added = sorted(current - expected)
+        self.assertEqual((missing, added), ([], []), f"\n사라진 라우트: {missing}\n새 라우트: {added}")
+
 
 if __name__ == "__main__":
     unittest.main()
