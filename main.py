@@ -8,7 +8,7 @@ import os
 import random
 import time
 from threading import Lock
-from datetime import date, datetime, timezone
+from datetime import date, timezone
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
@@ -24,16 +24,13 @@ load_env()  # 이후 모듈들이 os.environ 을 읽기 전에 .env 로드
 
 
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Query, Request
-from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.admin.auth import (
     COOKIE_NAME,
-    AdminAuthRedirect,
     admin_auth_enabled,
     admin_session_valid,
     clear_admin_session_cookie,
@@ -61,12 +58,13 @@ from models import ClickLog, Influencer, Product, Review
 from app.core.db import get_db, run_migrations
 from app.core.templates import templates
 from app.core.helpers import (
-    _client_ip_from_request,
     _ellipsis_middle,
     _ua_os_browser,
     enrich_coupang_url_for_public,
 )
 from app.core.theme import _client_theme_context
+from app.core.access_log import AccessDetailLogMiddleware
+from app.core.errors import register_error_handlers
 
 # 쿠팡 썸네일 프록시(Cloudflare Workers). 채널별 설정 없음 — 전역 env `COUPANG_IMAGE_WORKER_BASE`만 보며, 비우면 아래 URL.
 _DEFAULT_COUPANG_IMAGE_WORKER = "https://image.shortcrew.co.kr/"
@@ -81,59 +79,6 @@ logger = logging.getLogger(__name__)
 _sheet_products_count_cache_lock = Lock()
 _sheet_products_count_cache: dict[str, tuple[float, int]] = {}
 _SHEET_COUNT_CACHE_TTL = 120.0
-
-_ACCESS_LOG_DIR = _ROOT / "logs"
-_access_log_lock = Lock()
-
-
-def _append_access_detail_log(
-    *,
-    request: Request,
-    status_code: int,
-    duration_ms: float,
-) -> None:
-    """접속자·요청 상세를 일별 텍스트 파일에 한 줄(JSON)로 남긴다."""
-    now = datetime.now(KST)
-    rec: dict[str, object] = {
-        "ts": now.isoformat(timespec="milliseconds"),
-        "method": request.method,
-        "url": str(request.url),
-        "path": request.url.path,
-        "query": request.url.query or "",
-        "client_ip": _client_ip_from_request(request),
-        "forwarded_for": (request.headers.get("x-forwarded-for") or "").strip() or None,
-        "user_agent": (request.headers.get("user-agent") or "").strip() or None,
-        "referer": (request.headers.get("referer") or "").strip() or None,
-        "accept_language": (request.headers.get("accept-language") or "").strip() or None,
-        "host": (request.headers.get("host") or "").strip() or None,
-        "scheme": request.url.scheme,
-        "status_code": status_code,
-        "duration_ms": round(duration_ms, 3),
-    }
-    line = json.dumps(rec, ensure_ascii=False, separators=(",", ":"))
-    day = now.strftime("%Y-%m-%d")
-    path = _ACCESS_LOG_DIR / f"access-{day}.txt"
-    try:
-        _ACCESS_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        with _access_log_lock:
-            with path.open("a", encoding="utf-8") as f:
-                f.write(line + "\n")
-    except OSError as e:
-        logger.warning("access_detail_log_write_failed path=%s err=%s", path, e)
-
-
-class AccessDetailLogMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        start = time.perf_counter()
-        response = await call_next(request)
-        duration_ms = (time.perf_counter() - start) * 1000.0
-        _append_access_detail_log(
-            request=request,
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-        )
-        return response
-
 
 def _log_review_admin_persist(*, event: str, review: Review) -> None:
     """저장 직후 본문·쇼츠 CTA 분리 결과를 INFO 로 남긴다."""
@@ -184,71 +129,7 @@ run_migrations()
 
 app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
-_DEFAULT_404_MESSAGE = "요청하신 페이지가 없거나 주소가 변경되었을 수 있습니다."
-_DEFAULT_500_MESSAGE = "잠시 후 다시 시도해 주세요. 문제가 계속되면 관리자에게 문의해 주세요."
-
-
-def _request_wants_json_error(request: Request) -> bool:
-    path = request.url.path
-    if path.startswith("/api/") or path.startswith("/admin/api/"):
-        return True
-    accept = (request.headers.get("accept") or "").lower()
-    return "application/json" in accept and "text/html" not in accept
-
-
-def _http_exception_detail_text(exc: StarletteHTTPException) -> str | None:
-    detail = exc.detail
-    if isinstance(detail, str):
-        text = detail.strip()
-        return text or None
-    return None
-
-
-def _friendly_404_message(detail: str | None) -> str:
-    if not detail:
-        return _DEFAULT_404_MESSAGE
-    if detail.lower() in {"not found", "not_found"}:
-        return _DEFAULT_404_MESSAGE
-    return detail
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
-    if _request_wants_json_error(request):
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-    if exc.status_code == 404:
-        ctx = _client_theme_context()
-        ctx["message"] = _friendly_404_message(_http_exception_detail_text(exc))
-        return templates.TemplateResponse(request, "errors/404.html", ctx, status_code=404)
-    if exc.status_code >= 500:
-        ctx = _client_theme_context()
-        ctx["message"] = _http_exception_detail_text(exc) or _DEFAULT_500_MESSAGE
-        return templates.TemplateResponse(
-            request, "errors/500.html", ctx, status_code=exc.status_code
-        )
-    ctx = _client_theme_context()
-    ctx["message"] = _http_exception_detail_text(exc) or _DEFAULT_404_MESSAGE
-    return templates.TemplateResponse(request, "errors/404.html", ctx, status_code=exc.status_code)
-
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
-    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
-    if _request_wants_json_error(request):
-        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
-    ctx = _client_theme_context()
-    ctx["message"] = _DEFAULT_500_MESSAGE
-    return templates.TemplateResponse(request, "errors/500.html", ctx, status_code=500)
-
-
-@app.exception_handler(AdminAuthRedirect)
-async def _admin_auth_redirect_handler(request: Request, exc: AdminAuthRedirect) -> RedirectResponse:
-    if exc.next_url:
-        return RedirectResponse(
-            url=f"/admin/login?next={quote(exc.next_url, safe='')}",
-            status_code=302,
-        )
-    return RedirectResponse(url="/admin/login", status_code=302)
+register_error_handlers(app)
 
 
 @app.get("/health")
