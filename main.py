@@ -220,6 +220,8 @@ Base.metadata.create_all(bind=engine)
 
 def _ensure_click_log_schema() -> None:
     """기존 SQLite DB에 click_logs 신규 컬럼을 안전하게 추가한다."""
+    if engine.dialect.name != "sqlite":
+        return  # MySQL 등은 create_all 이 전체 스키마를 만들므로 PRAGMA 패치 불필요
     with engine.begin() as conn:
         cols = {
             str(row[1]).strip().lower()
@@ -244,6 +246,8 @@ _ensure_click_log_schema()
 
 def _ensure_influencer_v2_columns() -> None:
     """SQLite: profile_meta_json, mall_theme_json for ShortCrew V2."""
+    if engine.dialect.name != "sqlite":
+        return  # MySQL 등은 create_all 이 전체 스키마를 만들므로 PRAGMA 패치 불필요
     with engine.begin() as conn:
         cols = {
             str(row[1]).strip().lower()

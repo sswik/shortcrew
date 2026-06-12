@@ -1,12 +1,38 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 
-DATABASE_URL = "sqlite:///./database.db"
+def _load_dotenv_for_db() -> None:
+    """models 를 단독 import(scripts/tests)해도 `.env` 의 DATABASE_URL 을 읽도록 보강.
+    값이 이미 환경에 있으면(앱 부팅 시 main._load_env_file 등) 건드리지 않는다."""
+    if (os.environ.get("DATABASE_URL") or "").strip():
+        return
+    p = Path(__file__).resolve().parent / ".env"
+    if not p.is_file():
+        return
+    try:
+        from dotenv import dotenv_values
+    except Exception:
+        return
+    for key, val in dotenv_values(p).items():
+        if val is None:
+            continue
+        cur = os.environ.get(key)
+        if cur is None or cur.strip() == "":
+            os.environ[key] = val
+
+
+_load_dotenv_for_db()
+
+# DB 연결은 `.env` 의 DATABASE_URL 로 결정한다. 미설정 시에만 로컬 SQLite 로 폴백.
+# 예) mysql+pymysql://sswik:****@127.0.0.1:3306/crews
+DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip() or "sqlite:///./database.db"
 
 
 class Base(DeclarativeBase):
@@ -106,7 +132,7 @@ class ClickLog(Base):
 
 
 class DmAutomation(Base):
-    """인스타 댓글→자동 DM 규칙(인포크식). docs/09 C 참고."""
+    """인스타 댓글→자동 DM 규칙(인포크식). 06.운영가이드/08_인스타댓글자동DM.md C 참고."""
 
     __tablename__ = "dm_automations"
 
@@ -137,9 +163,17 @@ class DmAutomation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-)
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    # MySQL 등: 끊긴 커넥션 자동 감지(pre_ping) + 오래된 커넥션 재활용.
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
