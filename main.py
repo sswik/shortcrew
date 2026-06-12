@@ -8,8 +8,7 @@ import os
 import random
 import time
 from threading import Lock
-from collections.abc import Generator
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
@@ -19,43 +18,17 @@ import httpx
 _ROOT = Path(__file__).resolve().parent
 
 
-def _load_env_file() -> None:
-    """`.env` 를 읽어, **현재 값이 비어 있을 때만** 키를 채운다(셸에 빈 CHANNEL_* 만 있어 .env 가 무시되는 문제 방지)."""
-    path = _ROOT / ".env"
-    if not path.is_file():
-        return
-    from dotenv import dotenv_values
+from app.core.config import KST, load_env, normalize_site_base
 
-    for key, val in dotenv_values(path).items():
-        if val is None:
-            continue
-        cur = os.environ.get(key)
-        if cur is None or str(cur).strip() == "":
-            os.environ[key] = val
-
-
-_load_env_file()
-
-
-def _normalize_site_base(url: str) -> str:
-    """`PUBLIC_SITE_URL` 등 — 스킴 없는 호스트·`//` 형태를 절대 URL로."""
-    url = (url or "").strip().rstrip("/")
-    if not url:
-        return ""
-    if url.startswith("//"):
-        return "https:" + url
-    if not url.startswith(("http://", "https://")):
-        return "https://" + url.lstrip("/")
-    return url
+load_env()  # 이후 모듈들이 os.environ 을 읽기 전에 .env 로드
 
 
 from fastapi import Cookie, Depends, FastAPI, Form, HTTPException, Query, Request
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.admin.auth import (
@@ -88,7 +61,9 @@ from app.admin.ops.services.admin_review_products import (
     merge_saved_sheet_option_into_product_list,
 )
 from app.client.review_html import split_shorts_review_cta
-from models import Base, ClickLog, Influencer, Product, Review, SessionLocal, engine
+from models import ClickLog, Influencer, Product, Review
+from app.core.db import get_db, run_migrations
+from app.core.templates import templates
 
 # 쿠팡 썸네일 프록시(Cloudflare Workers). 채널별 설정 없음 — 전역 env `COUPANG_IMAGE_WORKER_BASE`만 보며, 비우면 아래 URL.
 _DEFAULT_COUPANG_IMAGE_WORKER = "https://image.shortcrew.co.kr/"
@@ -99,7 +74,6 @@ _mall_products_cache_lock = Lock()
 _mall_products_cache: dict[str, tuple[float, bytes, str]] = {}
 
 logger = logging.getLogger(__name__)
-KST = timezone(timedelta(hours=9))
 
 _sheet_products_count_cache_lock = Lock()
 _sheet_products_count_cache: dict[str, tuple[float, int]] = {}
@@ -215,53 +189,7 @@ async def redirect_www_to_apex(request: Request, call_next):
 
 app.add_middleware(AccessDetailLogMiddleware)
 
-Base.metadata.create_all(bind=engine)
-
-
-def _ensure_click_log_schema() -> None:
-    """기존 SQLite DB에 click_logs 신규 컬럼을 안전하게 추가한다."""
-    if engine.dialect.name != "sqlite":
-        return  # MySQL 등은 create_all 이 전체 스키마를 만들므로 PRAGMA 패치 불필요
-    with engine.begin() as conn:
-        cols = {
-            str(row[1]).strip().lower()
-            for row in conn.execute(text("PRAGMA table_info(click_logs)")).fetchall()
-        }
-        if "raw_product_ref" not in cols:
-            conn.execute(text("ALTER TABLE click_logs ADD COLUMN raw_product_ref VARCHAR(120)"))
-        if "product_name_snapshot" not in cols:
-            conn.execute(text("ALTER TABLE click_logs ADD COLUMN product_name_snapshot VARCHAR(255)"))
-        if "deep_link_snapshot" not in cols:
-            conn.execute(text("ALTER TABLE click_logs ADD COLUMN deep_link_snapshot VARCHAR(1200)"))
-        if "client_user_agent" not in cols:
-            conn.execute(text("ALTER TABLE click_logs ADD COLUMN client_user_agent VARCHAR(512)"))
-        if "page_url" not in cols:
-            conn.execute(text("ALTER TABLE click_logs ADD COLUMN page_url VARCHAR(800)"))
-        if "referrer_snapshot" not in cols:
-            conn.execute(text("ALTER TABLE click_logs ADD COLUMN referrer_snapshot VARCHAR(600)"))
-
-
-_ensure_click_log_schema()
-
-
-def _ensure_influencer_v2_columns() -> None:
-    """SQLite: profile_meta_json, mall_theme_json for ShortCrew V2."""
-    if engine.dialect.name != "sqlite":
-        return  # MySQL 등은 create_all 이 전체 스키마를 만들므로 PRAGMA 패치 불필요
-    with engine.begin() as conn:
-        cols = {
-            str(row[1]).strip().lower()
-            for row in conn.execute(text("PRAGMA table_info(influencers)")).fetchall()
-        }
-        if not cols:
-            return
-        if "profile_meta_json" not in cols:
-            conn.execute(text("ALTER TABLE influencers ADD COLUMN profile_meta_json TEXT"))
-        if "mall_theme_json" not in cols:
-            conn.execute(text("ALTER TABLE influencers ADD COLUMN mall_theme_json TEXT"))
-
-
-_ensure_influencer_v2_columns()
+run_migrations()
 
 
 def _client_theme_context(influencer: Influencer | None = None) -> dict[str, object]:
@@ -353,12 +281,6 @@ def enrich_coupang_url_for_public(url: str, *, lptag: str) -> str:
     return urlunparse((parts.scheme, parts.netloc, parts.path, parts.params, new_query, parts.fragment))
 
 
-templates = Jinja2Templates(
-    directory=[
-        str(_ROOT / "app" / "client" / "templates"),
-        str(_ROOT / "app" / "admin" / "templates"),
-    ]
-)
 app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
 
 _DEFAULT_404_MESSAGE = "요청하신 페이지가 없거나 주소가 변경되었을 수 있습니다."
@@ -426,14 +348,6 @@ async def _admin_auth_redirect_handler(request: Request, exc: AdminAuthRedirect)
             status_code=302,
         )
     return RedirectResponse(url="/admin/login", status_code=302)
-
-
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @app.get("/health")
@@ -1294,7 +1208,7 @@ def _influencer_hub_page(
         worker = _DEFAULT_COUPANG_IMAGE_WORKER.strip().rstrip("/")
     mall_fetch_url = ""
     if mall_api_url and mall_channel_id:
-        public_base = _normalize_site_base(os.environ.get("PUBLIC_SITE_URL") or "")
+        public_base = normalize_site_base(os.environ.get("PUBLIC_SITE_URL") or "")
         if not public_base:
             public_base = str(request.base_url).rstrip("/")
         mall_fetch_url = f"{public_base}/api/mall-products?channel_id={quote(mall_channel_id, safe='')}"
