@@ -108,13 +108,18 @@ class TestBridgeCurate(unittest.TestCase):
         with mock.patch.object(bridge.coupang, "search_products", _fake_search):
             self.assertEqual(self._post({"channel_id": "999"}).status_code, 404)
 
-    def test_pool_preview_without_topics(self) -> None:
-        with mock.patch.object(bridge.coupang, "search_products", _fake_search):
-            r = self._post({"channel_id": "105"})
+    def test_no_topics_uses_trend_keywords(self) -> None:
+        # 주제 미지정이면 채널 trend_keywords 를 주제로 사용(확장 기본)
+        with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
+                mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
+                mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
+            r = self._post({"channel_id": "105", "dry_run": True})
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()
-        self.assertEqual(d["mode"], "pool_preview")
-        self.assertEqual(d["pool_size"], 2)
+        self.assertEqual(d["mode"], "curate")
+        # 105 trend_keywords 중 '홈캠' 주제가 상품 선정됨
+        picked = [p for p in d["picks"] if p["picked"]]
+        self.assertTrue(len(picked) >= 1)
 
     def test_dry_run_no_sheet_write(self) -> None:
         with mock.patch.object(bridge.coupang, "search_products", _fake_search), \

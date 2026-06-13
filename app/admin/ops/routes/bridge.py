@@ -149,8 +149,12 @@ async def curate_products(
         pool_meta.append({"keyword": kw, "found": len(res.products), "stop_reason": res.stop_reason})
     pool = _dedupe_pool(pool)[:_MAX_POOL]
 
-    # 주제가 없으면 후보풀만 미리보기(선정·적재 없음)
-    if not body.topics:
+    # 주제: 명시값 없으면 채널 분야 키워드(trend_keywords)를 주제로 사용 → 채널만 넘기면 자동 큐레이션(확장 기본).
+    topics_in = [t.strip() for t in (body.topics or ch.get("trend_keywords") or []) if t.strip()]
+    topics_in = topics_in[:_MAX_KEYWORDS]
+
+    # 주제도 채널 키워드도 없을 때만 후보풀 미리보기(선정·적재 없음)
+    if not topics_in:
         return {
             "channel_id": body.channel_id,
             "mode": "pool_preview",
@@ -167,7 +171,7 @@ async def curate_products(
 
     # 2) 주제별 Gemini 선정
     picks: list[dict] = []
-    for topic in [t.strip() for t in body.topics if t.strip()]:
+    for topic in topics_in:
         sel = await gemini_curator.pick_product_for_topic(
             gem_key, topic=topic, candidates=pool, persona=persona,
         )
