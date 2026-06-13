@@ -1,4 +1,7 @@
-"""브리지 큐레이션 오케스트레이션 엔드포인트 테스트(쿠팡·Gemini·DB 모킹)."""
+"""브리지 큐레이션 오케스트레이션 테스트(쿠팡·Gemini·시트·DB 모킹).
+
+상품은 시트(append_rows)로, 블로그는 DB Review(sheet_product_* 연결)로 적재한다.
+"""
 from __future__ import annotations
 
 import os
@@ -10,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.admin.deps import get_db
 from app.admin.ops.routes import bridge
+from app.admin.ops.services import google_sheets
 from app.admin.ops.services.coupang import SearchProductsResult
 
 
@@ -22,29 +26,15 @@ def _make_app() -> FastAPI:
 
 class _FakeDB:
     added: list = []
-    _seq: int = 0
 
     def scalar(self, *a, **k):
-        return None  # 중복 없음 / 인플루언서 없음(표시명 slug 폴백)
+        return None  # 인플루언서 없음 → 표시명 slug 폴백
 
     def add(self, obj):
         _FakeDB.added.append(obj)
 
-    def flush(self):
-        for o in _FakeDB.added:
-            if getattr(o, "id", None) is None:
-                _FakeDB._seq += 1
-                try:
-                    o.id = _FakeDB._seq
-                except Exception:
-                    pass
-
     def commit(self):
         pass
-
-
-async def _fake_review_draft(api_key, **kwargs):
-    return {"title": f"[리뷰] {kwargs.get('product_title')}", "html": "<p>안전 강추</p>"}
 
 
 POOL = [
@@ -54,19 +44,20 @@ POOL = [
      "productUrl": "https://link.coupang.com/a/lock", "imageUrl": "i2", "category": "생활"},
 ]
 
+_APPENDED: list = []
 
-def _search_ret(*a, **k):
+
+def _fake_search_ret():
     return SearchProductsResult(
         products=POOL, raw_collected=2, filtered_count=2, stop_reason="ok", queries_run=1,
     )
 
 
 async def _fake_search(keyword, ak, sk, limit=10):
-    return _search_ret()
+    return _fake_search_ret()
 
 
 async def _fake_pick(api_key, *, topic, candidates, persona="", temperature=0.3):
-    # '홈캠' 주제면 0번, 그 외는 무관
     if "홈캠" in topic or "현관" in topic:
         return {"relevant": True, "picked": candidates[0], "selection_reason": "혼자 사는 집 필수 홈캠"}
     return {"relevant": False, "picked": None, "selection_reason": "연관 상품 없음"}
@@ -76,14 +67,29 @@ async def _fake_deeplinks(urls, ak, sk):
     return {u: u + "?lptag=deep" for u in urls}
 
 
+async def _fake_existing(sheet_id, tab, column="F"):
+    return set()
+
+
+async def _fake_append(sheet_id, tab, rows):
+    _APPENDED.append((sheet_id, tab, rows))
+
+
+async def _fake_review_draft(api_key, **kwargs):
+    return {"title": f"[리뷰] {kwargs.get('product_title')}", "html": "<p>안전 강추</p>"}
+
+
 class TestBridgeCurate(unittest.TestCase):
     def setUp(self) -> None:
         _FakeDB.added = []
+        _APPENDED.clear()
         self._env = mock.patch.dict(os.environ, {
             "OPS_API_TOKEN": "tok",
             "COUPANG_ACCESS_KEY": "ak",
             "COUPANG_SECRET_KEY": "sk",
             "GOOGLE_GEMINI_KEY": "gk",
+            "CHANNEL_105_FILE_ID": "SHEET_X",
+            "CHANNEL_105_TAB": "안지아픽-상품",
         })
         self._env.start()
         self.client = TestClient(_make_app())
@@ -96,13 +102,11 @@ class TestBridgeCurate(unittest.TestCase):
         return self.client.post("/admin/api/ops/bridge/curate", json=body, headers=h)
 
     def test_token_required(self) -> None:
-        r = self._post({"channel_id": "105"}, token="")
-        self.assertEqual(r.status_code, 401)
+        self.assertEqual(self._post({"channel_id": "105"}, token="").status_code, 401)
 
     def test_unknown_channel(self) -> None:
         with mock.patch.object(bridge.coupang, "search_products", _fake_search):
-            r = self._post({"channel_id": "999"})
-        self.assertEqual(r.status_code, 404)
+            self.assertEqual(self._post({"channel_id": "999"}).status_code, 404)
 
     def test_pool_preview_without_topics(self) -> None:
         with mock.patch.object(bridge.coupang, "search_products", _fake_search):
@@ -112,67 +116,68 @@ class TestBridgeCurate(unittest.TestCase):
         self.assertEqual(d["mode"], "pool_preview")
         self.assertEqual(d["pool_size"], 2)
 
-    def test_curate_dry_run_no_persist(self) -> None:
+    def test_dry_run_no_sheet_write(self) -> None:
         with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
                 mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
-            r = self._post({
-                "channel_id": "105",
-                "topics": ["현관 뚫리는 홈캠 사각지대", "우주의 기원"],
-                "dry_run": True,
-            })
+            r = self._post({"channel_id": "105", "topics": ["현관 홈캠", "우주의 기원"], "dry_run": True})
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()
-        self.assertEqual(d["persisted"], 0)
-        self.assertEqual(len(_FakeDB.added), 0)
-        # 첫 주제는 선정, 둘째는 무관
+        self.assertEqual(d["written_to_sheet"], 0)
+        self.assertEqual(len(_APPENDED), 0)
         picks = {p["topic"]: p for p in d["picks"]}
-        self.assertEqual(picks["현관 뚫리는 홈캠 사각지대"]["picked"], "샤오미 홈캠 2K")
-        self.assertIn("lptag=deep", picks["현관 뚫리는 홈캠 사각지대"]["deeplink"])
+        self.assertIn("lptag=deep", picks["현관 홈캠"]["deeplink"])
         self.assertIsNone(picks["우주의 기원"]["picked"])
 
-    def test_curate_persist_creates_product(self) -> None:
-        with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
-                mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
-                mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
-            r = self._post({
-                "channel_id": "105",
-                "topics": ["현관 홈캠 사각지대"],
-                "dry_run": False,
-            })
-        self.assertEqual(r.status_code, 200, r.text)
-        d = r.json()
-        self.assertEqual(d["persisted"], 1)
-        self.assertEqual(len(_FakeDB.added), 1)
-        prod = _FakeDB.added[0]
-        self.assertEqual(prod.influencer_slug, "safety")
-        self.assertEqual(prod.title, "샤오미 홈캠 2K")
-        self.assertIn("lptag=deep", prod.coupang_url)
-
-    def test_auto_blog_creates_review(self) -> None:
-        from models import Product, Review
+    def test_writes_products_to_sheet(self) -> None:
         with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
                 mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks), \
+                mock.patch.object(google_sheets, "get_existing_values", _fake_existing), \
+                mock.patch.object(google_sheets, "append_rows", _fake_append):
+            r = self._post({"channel_id": "105", "topics": ["현관 홈캠 사각지대"], "dry_run": False})
+        self.assertEqual(r.status_code, 200, r.text)
+        d = r.json()
+        self.assertEqual(d["written_to_sheet"], 1)
+        self.assertEqual(len(_APPENDED), 1)
+        sheet_id, tab, rows = _APPENDED[0]
+        self.assertEqual(sheet_id, "SHEET_X")
+        self.assertEqual(tab, "안지아픽-상품")
+        self.assertEqual(len(rows), 1)
+        # build_rows: C열=상품명, F열=쿠팡URL, G열=딥링크
+        self.assertEqual(rows[0][2], "샤오미 홈캠 2K")
+        self.assertIn("lptag=deep", rows[0][6])
+
+    def test_sheet_missing_returns_503(self) -> None:
+        with mock.patch.dict(os.environ, {"CHANNEL_105_FILE_ID": ""}), \
+                mock.patch.object(bridge.coupang, "search_products", _fake_search), \
+                mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
+                mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
+            r = self._post({"channel_id": "105", "topics": ["현관 홈캠"], "dry_run": False})
+        self.assertEqual(r.status_code, 503)
+
+    def test_auto_blog_creates_review_with_sheet_fields(self) -> None:
+        from models import Review
+        with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
+                mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
+                mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks), \
+                mock.patch.object(google_sheets, "get_existing_values", _fake_existing), \
+                mock.patch.object(google_sheets, "append_rows", _fake_append), \
                 mock.patch.object(bridge, "generate_review_draft", _fake_review_draft):
             r = self._post({
-                "channel_id": "105",
-                "topics": ["현관 홈캠 사각지대"],
-                "dry_run": False,
-                "auto_blog": True,
+                "channel_id": "105", "topics": ["현관 홈캠 사각지대"],
+                "dry_run": False, "auto_blog": True,
             })
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()
-        self.assertEqual(d["persisted"], 1)
+        self.assertEqual(d["written_to_sheet"], 1)
         self.assertEqual(d["blogs_created"], 1)
-        prods = [o for o in _FakeDB.added if isinstance(o, Product)]
         revs = [o for o in _FakeDB.added if isinstance(o, Review)]
-        self.assertEqual(len(prods), 1)
         self.assertEqual(len(revs), 1)
-        # 블로그가 상품에 1:1 연결
-        self.assertEqual(revs[0].product_id, prods[0].id)
+        self.assertIsNone(revs[0].product_id)
+        self.assertEqual(revs[0].sheet_product_title, "샤오미 홈캠 2K")
+        self.assertIn("lptag=deep", revs[0].sheet_product_deeplink)
         self.assertEqual(revs[0].influencer_slug, "safety")
-        self.assertTrue(revs[0].title.startswith("[리뷰]"))
 
 
 if __name__ == "__main__":
