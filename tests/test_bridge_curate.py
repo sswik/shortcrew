@@ -22,15 +22,29 @@ def _make_app() -> FastAPI:
 
 class _FakeDB:
     added: list = []
+    _seq: int = 0
 
     def scalar(self, *a, **k):
-        return None  # 중복 없음
+        return None  # 중복 없음 / 인플루언서 없음(표시명 slug 폴백)
 
     def add(self, obj):
         _FakeDB.added.append(obj)
 
+    def flush(self):
+        for o in _FakeDB.added:
+            if getattr(o, "id", None) is None:
+                _FakeDB._seq += 1
+                try:
+                    o.id = _FakeDB._seq
+                except Exception:
+                    pass
+
     def commit(self):
         pass
+
+
+async def _fake_review_draft(api_key, **kwargs):
+    return {"title": f"[리뷰] {kwargs.get('product_title')}", "html": "<p>안전 강추</p>"}
 
 
 POOL = [
@@ -134,6 +148,31 @@ class TestBridgeCurate(unittest.TestCase):
         self.assertEqual(prod.influencer_slug, "safety")
         self.assertEqual(prod.title, "샤오미 홈캠 2K")
         self.assertIn("lptag=deep", prod.coupang_url)
+
+    def test_auto_blog_creates_review(self) -> None:
+        from models import Product, Review
+        with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
+                mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
+                mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks), \
+                mock.patch.object(bridge, "generate_review_draft", _fake_review_draft):
+            r = self._post({
+                "channel_id": "105",
+                "topics": ["현관 홈캠 사각지대"],
+                "dry_run": False,
+                "auto_blog": True,
+            })
+        self.assertEqual(r.status_code, 200, r.text)
+        d = r.json()
+        self.assertEqual(d["persisted"], 1)
+        self.assertEqual(d["blogs_created"], 1)
+        prods = [o for o in _FakeDB.added if isinstance(o, Product)]
+        revs = [o for o in _FakeDB.added if isinstance(o, Review)]
+        self.assertEqual(len(prods), 1)
+        self.assertEqual(len(revs), 1)
+        # 블로그가 상품에 1:1 연결
+        self.assertEqual(revs[0].product_id, prods[0].id)
+        self.assertEqual(revs[0].influencer_slug, "safety")
+        self.assertTrue(revs[0].title.startswith("[리뷰]"))
 
 
 if __name__ == "__main__":

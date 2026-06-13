@@ -24,7 +24,6 @@
 /admin/api/ops/sheets/items/status [POST]
 /admin/api/ops/sheets/mall-import [POST]
 /admin/api/ops/sheets/send [POST]
-/admin/api/ops/shorts-review/run [POST]
 /admin/dashboard [GET]
 /admin/dm [GET]
 /admin/influencers [GET]

@@ -20,6 +20,26 @@
             <p class="muted">{{ review.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
         </div>
     </div>
+    {% if review.product or review.sheet_product_title %}
+    <div class="review-product-card">
+        {% if review.product and review.product.image_url %}
+        <div class="review-product-card__media">
+            <img src="{{ review.product.image_url }}" alt="{{ review.product.title }}" loading="lazy">
+        </div>
+        {% endif %}
+        <div class="review-product-card__info">
+            <p class="review-product-card__label">이 글의 추천 상품</p>
+            <p class="review-product-card__name">{{ review.product.title if review.product else review.sheet_product_title }}</p>
+            {% if review.product and review.product.price %}
+            <p class="review-product-card__price">{{ "{:,.0f}".format(review.product.price) }}원</p>
+            {% endif %}
+            {% if buy_url %}
+            <a class="btn btn-purchase-wide review-product-card__cta" href="{{ buy_url }}" target="_blank" rel="noopener" data-track-click
+               data-influencer="{{ influencer.name_slug }}" {% if review.product_id %}data-product-id="{{ review.product_id }}"{% endif %} data-product-name="{{ (review.product.title if review.product else (review.sheet_product_title or review.title)) | e }}" data-review-id="{{ review.id }}">쿠팡에서 구매하기</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
     <div class="detail-content">
         {{ review_body_html | safe }}
     </div>

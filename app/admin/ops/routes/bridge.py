@@ -23,7 +23,8 @@ from app.admin.deps import get_db
 from app.admin.ops.channels import get_channels
 from app.admin.ops.routes.instagram_publish import require_ops_token
 from app.admin.ops.services import coupang, gemini_curator
-from models import Product
+from app.admin.ops.services.gemini_review_draft import generate_review_draft
+from models import Influencer, Product, Review
 
 router = APIRouter()
 
@@ -58,6 +59,7 @@ class CurateBody(BaseModel):
     persona: str = ""               # Gemini 선정 페르소나. 비우면 채널명 기반.
     search_limit: int = 20          # 키워드당 검색 상한.
     dry_run: bool = True            # true 면 적재 없이 미리보기.
+    auto_blog: bool = False         # true 면 적재된 상품마다 블로그(Review) 자동 생성·발행(dry_run 시 무시).
 
 
 def _dedupe_pool(products: list[dict]) -> list[dict]:
@@ -147,8 +149,15 @@ async def curate_products(
             for pk in chosen:
                 pk["deeplink_error"] = str(e)[:120]
 
-    # 3) 적재(옵션)
+    # 3) 적재(옵션) + 블로그 자동발행(옵션)
+    want_blog = body.auto_blog and not body.dry_run and bool(gem_key)
+    inf_display = slug
+    if want_blog:
+        inf = db.scalar(select(Influencer).where(Influencer.name_slug == slug))
+        inf_display = inf.display_name if inf else slug
+
     persisted = 0
+    blogs_created = 0
     for pk in chosen:
         p = pk["product"]
         orig = str(p.get("productUrl") or "").strip()
@@ -167,16 +176,48 @@ async def curate_products(
             price = float(p.get("price") or 0)
         except (TypeError, ValueError):
             price = 0.0
-        db.add(Product(
+        prod = Product(
             influencer_slug=slug,
             title=str(p.get("productName") or "")[:255],
             price=price,
             image_url=str(p.get("imageUrl") or "")[:500],
             coupang_url=final_url[:500],
-        ))
+        )
+        db.add(prod)
+        db.flush()  # prod.id 확보
         persisted += 1
         pk["persisted"] = "ok"
-    if persisted:
+        pk["product_id"] = prod.id
+
+        # 블로그(Review) 자동 생성 — 상품 1:1, 영상 주제 맥락 반영
+        if want_blog:
+            try:
+                draft = await generate_review_draft(
+                    gem_key,
+                    influencer_display=inf_display,
+                    influencer_slug=slug,
+                    product_title=prod.title,
+                    product_price=prod.price,
+                    product_url=final_url,
+                    image_url=prod.image_url,
+                    extra_instruction=(
+                        f"이 글은 '{pk['topic']}' 주제의 쇼츠와 연결됩니다. "
+                        "해당 주제 맥락(보안 상황)을 도입부에 자연스럽게 녹이세요."
+                    ),
+                )
+                rev = Review(
+                    influencer_slug=slug,
+                    product_id=prod.id,
+                    title=(draft.get("title") or prod.title)[:255],
+                    content=draft.get("html") or "",
+                )
+                db.add(rev)
+                blogs_created += 1
+                pk["blog"] = "ok"
+            except Exception as e:  # 블로그 실패해도 상품 적재는 유지
+                pk["blog"] = f"error: {str(e)[:80]}"
+
+    if persisted or blogs_created:
         db.commit()
 
     return {
@@ -184,6 +225,7 @@ async def curate_products(
         "mall_slug": slug,
         "mode": "curate",
         "dry_run": body.dry_run,
+        "auto_blog": body.auto_blog,
         "pool_size": len(pool),
         "pool_meta": pool_meta,
         "persona": persona,
@@ -195,8 +237,11 @@ async def curate_products(
                 "reason": pk.get("reason"),
                 "deeplink": pk.get("deeplink"),
                 "persisted": pk.get("persisted"),
+                "product_id": pk.get("product_id"),
+                "blog": pk.get("blog"),
             }
             for pk in picks
         ],
         "persisted": persisted,
+        "blogs_created": blogs_created,
     }

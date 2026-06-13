@@ -15,7 +15,6 @@ from app.admin.ops.routes import instagram_publish as instagram_publish_routes
 from app.admin.ops.routes import mall as mall_routes
 from app.admin.ops.routes import naver as naver_routes
 from app.admin.ops.routes import sheets as sheets_routes
-from app.admin.ops.routes import shorts_review as shorts_review_routes
 
 router = APIRouter()
 
@@ -25,7 +24,6 @@ router.include_router(naver_routes.router, prefix="/naver", tags=["admin-ops"])
 router.include_router(sheets_routes.router, prefix="/sheets", tags=["admin-ops"])
 router.include_router(ai_routes.router, prefix="/ai", tags=["admin-ops"])
 router.include_router(mall_routes.router, prefix="/mall", tags=["admin-ops"])
-router.include_router(shorts_review_routes.router, prefix="/shorts-review", tags=["admin-ops"])
 router.include_router(dm_routes.router, prefix="/dm", tags=["admin-ops"])
 router.include_router(instagram_publish_routes.router, prefix="/instagram", tags=["admin-ops"])
 router.include_router(bridge_routes.router, prefix="/bridge", tags=["admin-ops"])

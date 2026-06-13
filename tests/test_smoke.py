@@ -67,7 +67,7 @@ class TestSmoke(unittest.TestCase):
         self.assertIn("/admin/api/ops/ai/review-draft", paths)
         self.assertIn("/admin/api/ops/sheets/mall-import", paths)
         self.assertIn("/admin/api/ops/sheets/deeplink-preview", paths)
-        self.assertIn("/admin/api/ops/shorts-review/run", paths)
+        self.assertIn("/admin/api/ops/bridge/curate", paths)
 
     def test_admin_login_get(self) -> None:
         r = self.client.get("/admin/login")
