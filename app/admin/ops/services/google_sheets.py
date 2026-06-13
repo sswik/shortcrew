@@ -131,9 +131,12 @@ def build_rows(products: list[dict], channel_id: str = "unknown") -> list[list[A
     """
     기획안 스펙 반영 (A~K열 총 11개 컬럼)
     A(No), B(카테고리), C(상품명), D(가격), E(이미지URL), F(쿠팡URL),
-    G(딥링크), H(영상No), I(게시상태), J(등록일), K(예약·빈칸)
+    G(딥링크), H(영상No), I(게시상태), J(등록일), K(subId)
+    K열 값은 딥링크 API subId 와 동일(고정 shortcrew) — short-mall 과 동일 규칙.
     """
     from datetime import datetime
+
+    from app.admin.ops.services.coupang import COUPANG_DEEPLINK_API_SUB_ID
 
     channel_id = channel_id or "unknown"
     rows = []
@@ -151,7 +154,7 @@ def build_rows(products: list[dict], channel_id: str = "unknown") -> list[list[A
             video_no,  # H: 연관영상No
             "대기",  # I: 게시상태 (고정)
             datetime.now().strftime("%Y-%m-%d"),  # J: 등록일
-            "",  # K: 레거시 열(비움)
+            COUPANG_DEEPLINK_API_SUB_ID,  # K: subId (딥링크 API subId 와 동일·고정)
         ]
         rows.append(row)
     return rows

@@ -89,6 +89,19 @@ def _curate_result(body, slug, pool, pool_meta, persona, picks, *, written, blog
     }
 
 
+def _clean_product_url(p: dict) -> str:
+    """딥링크 입력용 클린 상품 URL(`vp/products/{id}`).
+
+    쿠팡 검색 결과 URL은 이미 lptag·src 등 제휴태그가 붙어 있어, 그대로 딥링크하면
+    MIXED 토큰이 되며 subId(shortcrew)가 랜딩 URL에서 유실된다. 클린 URL로 넣어야
+    subId 가 정상 전파된다(검증 완료).
+    """
+    pid = str(p.get("productId") or "").strip()
+    if pid:
+        return f"https://www.coupang.com/vp/products/{pid}"
+    return str(p.get("productUrl") or "").strip()
+
+
 def _dedupe_pool(products: list[dict]) -> list[dict]:
     seen: set[str] = set()
     out: list[dict] = []
@@ -163,23 +176,24 @@ async def curate_products(
         else:
             picks.append({"topic": topic, "product": None, "reason": sel.get("selection_reason", "연관 상품 없음")})
 
-    # 선정된 상품 URL → 딥링크
+    # 선정된 상품 → 클린 URL(vp/products/{id})로 딥링크 (이미-제휴 URL 넣으면 subId 유실)
     chosen = [pk for pk in picks if pk["product"]]
-    urls = [str(pk["product"].get("productUrl") or "").strip() for pk in chosen]
-    urls = [u for u in urls if u]
+    for pk in chosen:
+        pk["clean_url"] = _clean_product_url(pk["product"])
+    urls = [pk["clean_url"] for pk in chosen if pk["clean_url"]]
     deeplinks: dict[str, str] = {}
     if urls:
         try:
             deeplinks = await coupang.generate_deeplinks(urls, access_key, secret_key)
-        except Exception as e:  # 딥링크 실패해도 원본 URL로 진행
+        except Exception as e:  # 딥링크 실패해도 클린 URL로 진행
             deeplinks = {}
             for pk in chosen:
                 pk["deeplink_error"] = str(e)[:120]
 
-    # 선정 상품에 최종 구매 URL(딥링크 우선) 부착
+    # 최종 구매 URL = 딥링크(우선) / 실패 시 클린 URL
     for pk in chosen:
-        orig = str(pk["product"].get("productUrl") or "").strip()
-        pk["deeplink"] = deeplinks.get(orig, "") or orig
+        cu = pk["clean_url"]
+        pk["deeplink"] = deeplinks.get(cu, "") or cu
 
     # dry_run: 시트·DB 미기록, 미리보기만
     if body.dry_run:
@@ -211,9 +225,9 @@ async def curate_products(
     blogs_created = 0
     for pk in chosen:
         p = pk["product"]
-        orig = str(p.get("productUrl") or "").strip()
+        clean = pk["clean_url"]  # F열=클린 상품URL(안정적 → 중복제거 정확)
         deep = pk["deeplink"]
-        if not orig or orig in existing:
+        if not clean or clean in existing:
             pk["sheet"] = "dup_skip"
             continue
         sheet_rows.append({
@@ -221,7 +235,7 @@ async def curate_products(
             "productName": p.get("productName") or "",
             "price": p.get("price") or 0,
             "imageUrl": p.get("imageUrl") or "",
-            "productUrl": orig,
+            "productUrl": clean,
             "deepLink": deep,
         })
         pk["sheet"] = "ok"
@@ -239,7 +253,7 @@ async def curate_products(
                     influencer_slug=slug,
                     product_title=str(p.get("productName") or ""),
                     product_price=price,
-                    product_url=deep or orig,
+                    product_url=deep or clean,
                     image_url=str(p.get("imageUrl") or ""),
                     extra_instruction=(
                         f"이 글은 '{pk['topic']}' 주제의 쇼츠와 연결됩니다. "
@@ -251,7 +265,7 @@ async def curate_products(
                     title=(draft.get("title") or str(p.get("productName") or ""))[:255],
                     content=draft.get("html") or "",
                     sheet_product_title=str(p.get("productName") or "")[:255],
-                    sheet_product_deeplink=(deep or orig)[:500],
+                    sheet_product_deeplink=(deep or clean)[:500],
                 )
                 db.add(rev)
                 blogs_created += 1
