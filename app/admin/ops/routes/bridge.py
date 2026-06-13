@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,7 +25,18 @@ from app.admin.ops.channels import get_channels
 from app.admin.ops.routes.instagram_publish import require_ops_token
 from app.admin.ops.services import coupang, gemini_curator
 from app.admin.ops.services.gemini_review_draft import generate_review_draft
-from models import Influencer, Review
+from models import DmAutomation, Influencer, Review
+
+
+def _dm_message_template(product_title: str, deeplink: str, persona: str = "") -> str:
+    """자동 DM 기본 문구(템플릿). Gemini 미사용 시·실패 시 사용."""
+    who = (persona or "").split("(", 1)[0].strip()
+    head = f"안녕하세요! {who}예요. " if who else "안녕하세요! "
+    return (
+        f"{head}영상에서 보신 '{product_title}' 정보 보내드려요 😊\n"
+        f"바로 확인 → {deeplink}\n"
+        "더 궁금한 점 있으면 편하게 답 주세요!"
+    )
 
 router = APIRouter()
 
@@ -60,15 +72,18 @@ class CurateBody(BaseModel):
     search_limit: int = 20          # 키워드당 검색 상한.
     dry_run: bool = True            # true 면 적재 없이 미리보기.
     auto_blog: bool = False         # true 면 적재된 상품마다 블로그(Review) 자동 생성·발행(dry_run 시 무시).
+    auto_dm: bool = False           # true 면 적재된 상품마다 자동DM 규칙 생성(다음 발행 게시물 대상, 상품 딥링크).
+    dm_gemini: bool = False         # true 면 DM 문구를 Gemini 로 생성(기본은 템플릿).
 
 
-def _curate_result(body, slug, pool, pool_meta, persona, picks, *, written, blogs) -> dict:
+def _curate_result(body, slug, pool, pool_meta, persona, picks, *, written, blogs, dms=0) -> dict:
     return {
         "channel_id": body.channel_id,
         "mall_slug": slug,
         "mode": "curate",
         "dry_run": body.dry_run,
         "auto_blog": body.auto_blog,
+        "auto_dm": body.auto_dm,
         "pool_size": len(pool),
         "pool_meta": pool_meta,
         "persona": persona,
@@ -81,11 +96,13 @@ def _curate_result(body, slug, pool, pool_meta, persona, picks, *, written, blog
                 "deeplink": pk.get("deeplink"),
                 "sheet": pk.get("sheet"),
                 "blog": pk.get("blog"),
+                "dm": pk.get("dm"),
             }
             for pk in picks
         ],
         "written_to_sheet": written,
         "blogs_created": blogs,
+        "dm_rules_created": dms,
     }
 
 
@@ -220,13 +237,15 @@ async def curate_products(
     existing = await get_existing_values(sheet_id, tab_name, column="F")  # F열=쿠팡URL 중복 방지
 
     want_blog = body.auto_blog and bool(gem_key)
+    want_dm = body.auto_dm
     inf_display = slug
-    if want_blog:
+    if want_blog or want_dm:
         inf = db.scalar(select(Influencer).where(Influencer.name_slug == slug))
         inf_display = inf.display_name if inf else slug
 
     sheet_rows: list[dict] = []
     blogs_created = 0
+    dm_rules_created = 0
     for pk in chosen:
         p = pk["product"]
         clean = pk["clean_url"]  # F열=클린 상품URL(안정적 → 중복제거 정확)
@@ -279,11 +298,45 @@ async def curate_products(
             except Exception as e:  # 블로그 실패해도 시트 적재는 유지
                 pk["blog"] = f"error: {str(e)[:80]}"
 
+        # 자동DM 규칙 → 다음 발행 게시물 대상, 상품 딥링크 + 문구(템플릿/Gemini)
+        if want_dm:
+            try:
+                ptitle = str(p.get("productName") or "")
+                dlink = deep or clean
+                msg = ""
+                if body.dm_gemini and gem_key:
+                    try:
+                        msg = await gemini_curator.generate_dm_message(
+                            gem_key, product_title=ptitle, deeplink=dlink, persona=persona,
+                        )
+                    except Exception:
+                        msg = ""
+                if not msg:
+                    msg = _dm_message_template(ptitle, dlink, persona)
+                db.add(DmAutomation(
+                    channel_id=body.channel_id,
+                    name=f"[자동] {ptitle[:60]}",
+                    target_mode="next",  # 다음 발행 게시물에 자동 적용
+                    trigger_type="keyword",
+                    keywords_json=json.dumps(["구매", "링크", "정보"], ensure_ascii=False),
+                    public_reply_enabled=True,
+                    public_reply_variants_json=json.dumps(["DM 확인해주세요! 🙂"], ensure_ascii=False),
+                    dm_message=msg,
+                    dm_product_title=ptitle[:255],
+                    dm_link=dlink[:800],
+                    active=True,
+                ))
+                dm_rules_created += 1
+                pk["dm"] = "ok"
+            except Exception as e:  # DM 실패해도 시트·블로그는 유지
+                pk["dm"] = f"error: {str(e)[:80]}"
+
     written = len(sheet_rows)
     if sheet_rows:
         rows = build_rows(sheet_rows, channel_id=body.channel_id)
         await append_rows(sheet_id, tab_name, rows)
-    if blogs_created:
+    if blogs_created or dm_rules_created:
         db.commit()
 
-    return _curate_result(body, slug, pool, pool_meta, persona, picks, written=written, blogs=blogs_created)
+    return _curate_result(body, slug, pool, pool_meta, persona, picks,
+                          written=written, blogs=blogs_created, dms=dm_rules_created)

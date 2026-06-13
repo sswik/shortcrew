@@ -130,3 +130,32 @@ async def pick_product_for_topic(
     if not data.get("relevant") or not isinstance(idx, int) or idx < 0 or idx >= len(candidates):
         return {"relevant": False, "picked": None, "selection_reason": reason or "연관 상품 없음"}
     return {"relevant": True, "picked": candidates[idx], "selection_reason": reason}
+
+
+# ── 자동 DM 문구 생성 (브리지 큐레이션의 auto_dm) ──
+
+async def generate_dm_message(
+    api_key: str,
+    *,
+    product_title: str,
+    deeplink: str,
+    persona: str = "",
+    temperature: float = 0.7,
+) -> str:
+    """인스타 댓글 답변으로 보낼 자동 DM 문구 1개를 생성(평문 반환)."""
+    if not api_key:
+        raise ValueError("Gemini API 키가 설정되지 않았습니다.")
+    who = (persona or "상품 큐레이터").split("(", 1)[0].strip()
+    client = genai.Client(api_key=api_key)
+    prompt = (
+        f"당신은 인플루언서 '{who}'입니다. 인스타 댓글을 남긴 분께 답으로 보낼 DM 문구를 쓰세요.\n"
+        f"[상품] {product_title}\n[구매 링크] {deeplink}\n"
+        "조건: 친근한 존댓말 2~3문장, 과장광고·수치과장 금지, 끝에 구매 링크 1개 포함, "
+        "이모지 1개 정도, 200자 이내. 문구 텍스트만 출력."
+    )
+    response = await client.aio.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=temperature),
+    )
+    return (response.text or "").strip()

@@ -184,6 +184,27 @@ class TestBridgeCurate(unittest.TestCase):
         self.assertIn("lptag=deep", revs[0].sheet_product_deeplink)
         self.assertEqual(revs[0].influencer_slug, "safety")
 
+    def test_auto_dm_creates_rule(self) -> None:
+        from models import DmAutomation
+        with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
+                mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
+                mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks), \
+                mock.patch.object(google_sheets, "get_existing_values", _fake_existing), \
+                mock.patch.object(google_sheets, "append_rows", _fake_append):
+            r = self._post({
+                "channel_id": "105", "topics": ["현관 홈캠 사각지대"],
+                "dry_run": False, "auto_dm": True,  # dm_gemini 미지정 → 템플릿
+            })
+        self.assertEqual(r.status_code, 200, r.text)
+        d = r.json()
+        self.assertEqual(d["dm_rules_created"], 1)
+        dms = [o for o in _FakeDB.added if isinstance(o, DmAutomation)]
+        self.assertEqual(len(dms), 1)
+        self.assertEqual(dms[0].channel_id, "105")
+        self.assertEqual(dms[0].target_mode, "next")
+        self.assertIn("lptag=deep", dms[0].dm_link)
+        self.assertIn("샤오미 홈캠 2K", dms[0].dm_message)
+
 
 if __name__ == "__main__":
     unittest.main()
