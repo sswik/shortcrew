@@ -155,7 +155,7 @@ def build_rows(products: list[dict], channel_id: str = "unknown") -> list[list[A
             p.get("productUrl") or "",  # F: 쿠팡URL
             p.get("deepLink") or "",  # G: 딥링크 (FastAPI 파트너스 API가 자동 생성)
             video_no,  # H: 연관영상No
-            "대기",  # I: 게시상태 (고정)
+            p.get("status") or "대기",  # I: 게시상태 (기본 대기, 큐레이션 자동발행 시 게시중)
             datetime.now().strftime("%Y-%m-%d"),  # J: 등록일
             COUPANG_DEEPLINK_API_SUB_ID,  # K: subId (딥링크 API subId 와 동일·고정)
         ]

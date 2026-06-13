@@ -237,6 +237,8 @@ async def curate_products(
             "imageUrl": p.get("imageUrl") or "",
             "productUrl": clean,
             "deepLink": deep,
+            # 블로그 자동발행과 동시에 즉시 노출(게시중). 블로그 없이 적재면 대기.
+            "status": "게시중" if want_blog else "대기",
         })
         pk["sheet"] = "ok"
 

@@ -208,7 +208,8 @@ def _influencer_hub_page(
     if not worker:
         worker = _DEFAULT_COUPANG_IMAGE_WORKER.strip().rstrip("/")
     mall_fetch_url = ""
-    if mall_api_url and mall_channel_id:
+    # Apps Script URL 이 없어도(=서버가 시트를 직접 읽는 채널) 매칭 채널이 있으면 상품을 불러온다.
+    if mall_channel_id:
         public_base = normalize_site_base(os.environ.get("PUBLIC_SITE_URL") or "")
         if not public_base:
             public_base = str(request.base_url).rstrip("/")

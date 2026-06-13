@@ -1,6 +1,11 @@
-"""공개 몰 상품 프록시: Apps Script 웹앱 JSON 을 서버가 받아 캐시·날짜셔플 후 반환."""
+"""공개 몰 상품 프록시: Apps Script 웹앱 JSON 을 서버가 받아 캐시·날짜셔플 후 반환.
+
+Apps Script URL 이 없는 채널(예: 안지아)은 서버가 채널 구글 시트(탭)를 **직접 읽어**
+같은 형태의 상품 JSON 으로 반환한다(소스는 동일하게 '시트', Apps Script 불필요).
+"""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -24,6 +29,49 @@ _MALL_PRODUCTS_CACHE_TTL_SECONDS = float(
 )
 _mall_products_cache_lock = Lock()
 _mall_products_cache: dict[str, tuple[float, bytes, str]] = {}
+
+
+def _sheet_direct_products_response(cid: str, channel: dict, now: float) -> Response:
+    """Apps Script 없이 채널 구글 시트(탭)를 서버가 직접 읽어 상품 JSON 으로 반환.
+
+    시트 컬럼(build_rows 스펙): B(카테고리) C(상품명) D(가격) E(이미지URL)
+    F(쿠팡URL) G(딥링크) I(게시상태). 게시상태 '게시중'만 노출.
+    """
+    sheet_id = (channel.get("google_sheet_id") or "").strip()
+    tab = (channel.get("sheet_tab_name") or "상품목록").strip()
+    items: list[dict] = []
+    if sheet_id:
+        from app.admin.ops.services.google_sheets import get_all_rows
+        try:
+            rows = asyncio.run(get_all_rows(sheet_id, tab, "A2:K1000"))
+        except Exception as e:
+            logger.warning("mall_sheet_direct_read_error cid=%s tab=%s err=%s", cid, tab, e)
+            rows = []
+        for r in rows:
+            if len(r) < 9:
+                continue
+            status = (r[8] or "").strip()
+            name = (r[2] or "").strip()
+            if status != "게시중" or not name:
+                continue
+            items.append({
+                "category": (r[1] or "").strip(),
+                "productName": name,
+                "price": r[3],
+                "imageUrl": (r[4] or "").strip(),
+                "productUrl": (r[5] or "").strip(),
+                "deepLink": (r[6] or "").strip(),
+            })
+    if len(items) > 1:
+        random.Random(str(date.today())).shuffle(items)
+    body = json.dumps(items, ensure_ascii=False).encode()
+    with _mall_products_cache_lock:
+        _mall_products_cache[cid] = (
+            now + max(1.0, _MALL_PRODUCTS_CACHE_TTL_SECONDS),
+            body,
+            "application/json",
+        )
+    return Response(content=body, media_type="application/json")
 
 
 def mall_products_response(channel_id: str = "") -> Response:
@@ -55,7 +103,8 @@ def mall_products_response(channel_id: str = "") -> Response:
         raise HTTPException(status_code=404, detail="channel not found")
     base = (channel.get("mall_products_api_url") or "").strip()
     if not base:
-        raise HTTPException(status_code=503, detail="mall_products_api_url not configured")
+        # Apps Script 미설정 채널(안지아 등) → 채널 구글 시트(탭)를 서버가 직접 읽어 노출
+        return _sheet_direct_products_response(cid, channel, now)
     chan_q = (channel.get("mall_products_channel_param") or "").strip() or cid
     sep = "?" if "?" not in base else "&"
     target = f"{base}{sep}channel={quote(chan_q, safe='')}"
