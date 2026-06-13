@@ -61,7 +61,10 @@ def _get_access_token_from_keyfile() -> str:
     )
     from google.auth.transport.requests import Request
     credentials.refresh(Request())
-    return credentials.token
+    token = credentials.token
+    if not token:
+        raise RuntimeError("구글 액세스 토큰 발급에 실패했습니다(google-key.json 확인).")
+    return str(token)
 
 
 async def append_rows(
