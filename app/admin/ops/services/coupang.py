@@ -117,7 +117,13 @@ def _normalize_product(item: dict) -> dict:
 
 def _extract_product_items(data: dict[str, Any]) -> list[dict]:
     """쿠팡 응답 payload에서 상품 배열을 추출."""
-    items = data.get("data", {}).get("productData") or data.get("productData") or data.get("data") or []
+    inner = data.get("data")
+    if isinstance(inner, dict):
+        # search 응답: data.data.productData
+        items = inner.get("productData") or data.get("productData") or []
+    else:
+        # bestcategories·goldbox 응답: data.data 가 상품 리스트 자체
+        items = data.get("productData") or inner or []
     if isinstance(items, dict):
         items = list(items.values()) if items else []
     if not isinstance(items, list):
@@ -294,6 +300,89 @@ async def search_products(
         filtered_count=filtered_total,
         stop_reason=stop_reason,
         queries_run=queries_run,
+    )
+
+
+async def _get_filtered_products(
+    path: str,
+    query: str,
+    access_key: str,
+    secret_key: str,
+    *,
+    limit: int,
+    timeout_seconds: float = 30.0,
+    log_label: str = "",
+) -> SearchProductsResult:
+    """단일 GET 조회(베스트/골드박스 공용): 응답 추출 → 필터(리뷰>=50, 평점>=4.5) → 정규화."""
+    if not access_key or not secret_key:
+        return SearchProductsResult(products=[], raw_collected=0, filtered_count=0, stop_reason="missing_key", queries_run=0)
+    request_limit = max(1, min(int(limit or 10), 100))
+    qstr = f"?{query}" if query else ""
+    url = f"https://api-gateway.coupang.com{path}{qstr}"
+    auth_header = build_authorization_header(access_key, secret_key, path, query)
+    label = log_label or path
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(url, headers={"Authorization": auth_header}, timeout=timeout_seconds)
+            data = resp.json()
+        except Exception as e:
+            logger.warning("coupang %s 요청 실패: %s", label, e)
+            return SearchProductsResult(products=[], raw_collected=0, filtered_count=0, stop_reason="request_error", queries_run=1)
+
+    if data.get("rCode") and str(data.get("rCode")) != "0":
+        logger.warning("coupang %s 오류: %s", label, data)
+        return SearchProductsResult(products=[], raw_collected=0, filtered_count=0, stop_reason="business_error", queries_run=1)
+
+    raw_items = _extract_product_items(data)
+    filtered = _apply_filters(raw_items)
+    final_products = [_normalize_product(p) for p in filtered[:request_limit]]
+    logger.debug(
+        "coupang %s raw=%s filtered=%s returned=%s",
+        label, len(raw_items), len(filtered), len(final_products),
+    )
+    return SearchProductsResult(
+        products=final_products,
+        raw_collected=len(raw_items),
+        filtered_count=len(filtered),
+        stop_reason="ok",
+        queries_run=1,
+    )
+
+
+async def fetch_best_categories(
+    category_id: str,
+    access_key: str,
+    secret_key: str,
+    *,
+    limit: int = 20,
+    timeout_seconds: float = 30.0,
+) -> SearchProductsResult:
+    """쿠팡 카테고리별 베스트 상품 조회 후 필터 적용. (브리지 후보풀 수집용)
+
+    category_id 는 쿠팡 카테고리 ID(숫자 문자열, 예: 가전디지털 `1010`).
+    """
+    cid = str(category_id).strip()
+    path = f"/v2/providers/affiliate_open_api/apis/openapi/products/bestcategories/{cid}"
+    query = f"limit={max(1, min(int(limit or 20), 100))}"
+    return await _get_filtered_products(
+        path, query, access_key, secret_key,
+        limit=limit, timeout_seconds=timeout_seconds, log_label=f"bestcategories/{cid}",
+    )
+
+
+async def fetch_goldbox(
+    access_key: str,
+    secret_key: str,
+    *,
+    limit: int = 20,
+    timeout_seconds: float = 30.0,
+) -> SearchProductsResult:
+    """쿠팡 골드박스(매일 오전 7:30 갱신) 상품 조회 후 필터 적용. limit 은 클라이언트측 슬라이스."""
+    path = "/v2/providers/affiliate_open_api/apis/openapi/products/goldbox"
+    return await _get_filtered_products(
+        path, "", access_key, secret_key,
+        limit=limit, timeout_seconds=timeout_seconds, log_label="goldbox",
     )
 
 
