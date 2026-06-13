@@ -19,6 +19,8 @@ services:
       - ./google-key.json:/app/google-key.json:ro
       # 접속 상세 로그(AccessDetailLogMiddleware) — 호스트 ./logs 와 동기화.
       - ./logs:/app/logs
+      # 인플루언서 프로필/커버 이미지(운영 중 추가) — 재빌드 없이 호스트에서 관리.
+      - ./static/images/influencers:/app/static/images/influencers
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8028/health', timeout=5)"]
       interval: 30s
