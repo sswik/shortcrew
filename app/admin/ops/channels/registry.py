@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .roster import golf, safety, shopping, tennis
+from .roster import golf, safety, science, shopping, space, tennis
 
 ChannelBuilder = Callable[[], dict]
 
@@ -36,4 +36,6 @@ CHANNEL_BUILDERS: tuple[ChannelBuilder, ...] = (
     tennis.build,
     shopping.build,
     safety.build,
+    space.build,
+    science.build,
 )
