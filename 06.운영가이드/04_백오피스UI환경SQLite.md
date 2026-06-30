@@ -1,6 +1,6 @@
-# 04 — 관리자 UI·환경 로딩·SQLite 마이그레이션
+# 04 — 관리자 UI·환경 로딩·DB 스키마
 
-백오피스 UX, **로컬 DB 스키마 보정**, 타입/분석기, **ShortCrew V2 admin 테마** 정리.
+백오피스 UX, **DB 스키마 생성(MySQL)**, 타입/분석기, **ShortCrew V2 admin 테마** 정리.
 
 ## ShortCrew V2 — Admin Tailwind
 
@@ -14,12 +14,12 @@
 - `mall_theme_json` — HEX 키 (`background`, `card`, `accent`, `textMain`, `textSub`, `border`, …). 비우면 공개 몰 fallback
 - POST [main.py](../main.py) `admin_influencer_edit_post`
 
-## SQLite — Influencer V2 컬럼
+## Influencer V2 컬럼
 
-- `main.py` `_ensure_influencer_v2_columns()`: `profile_meta_json`, `mall_theme_json` (`ALTER TABLE`)
-- [scripts/setup_sqlite_from_roster.py](../scripts/setup_sqlite_from_roster.py): 동일 컬럼 보정 + 로스터 시드
+- 스키마는 MySQL 에서 `Base.metadata.create_all`(앱 부팅 `run_migrations()`)로 생성된다 — `profile_meta_json`, `mall_theme_json` 포함.
+- [scripts/seed_influencers_from_roster.py](../scripts/seed_influencers_from_roster.py): 로스터 기준 `influencers` 시드(채널 추가 시 실행).
 
-기존 컬럼(`bio`, SNS URL, `cover_image`, `shop_path_slug`) 보정 로직은 스크립트에 유지.
+> 과거 SQLite 의 `ALTER TABLE` 경량 보정(`_ensure_influencer_v2_columns` 등)은 MySQL 전환으로 제거됨.
 
 ---
 

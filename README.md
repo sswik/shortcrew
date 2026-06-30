@@ -5,7 +5,7 @@
 ## 핵심 스택
 
 - FastAPI
-- SQLAlchemy + SQLite
+- SQLAlchemy + MySQL(`mysql-server:3306`, DB `crews`)
 - Jinja2 Templates
 - 정적 자산(`static/`) + ShortCrew V2 테마 (다크 `#121212`, 시안 `#00C2D1`, 앰버 CTA `#FFB800`)
 - Docker + Cloudflare Tunnel
@@ -16,7 +16,6 @@
 shortcrew/
 ├── main.py                 # 앱 진입점, .env 로드, 라우트·템플릿 경로
 ├── models.py
-├── database.db             # 로컬 SQLite (git 제외 가능)
 ├── .gitignore
 ├── .env.example             # 환경 변수 키 목록(값 비움). → .env 로 복사 후 사용
 ├── requirements.txt
@@ -50,7 +49,7 @@ docker compose up -d --build
 curl http://127.0.0.1:8028/health
 ```
 
-같은 디렉터리에 **`database.db`**, **`google-key.json`** 이 있어야 볼륨 마운트가 성공한다(없으면 호스트에 먼저 만들거나, `docker-compose.yml` 의 `volumes` 두 줄을 배포 환경에 맞게 수정한다).
+같은 디렉터리에 **`google-key.json`** 이 있어야 볼륨 마운트가 성공한다. DB 는 외부 MySQL(`mysql-server:3306`, DB `crews`, `ejlab_global_net`)에 접속하며 `.env` 의 `DATABASE_URL` 로 지정한다.
 
 ### Cloudflare Tunnel로 공개
 
@@ -98,7 +97,7 @@ python3 -m unittest tests.test_smoke -v
 ### 공개
 
 - `/` 인플루언서 홈
-- `/{name_slug}` 인플 독립몰 허브(상품 탭 기본). `/{name_slug}/review`, `/{name_slug}/introduce`는 각 탭 URL. **상품 목록은 SQLite가 아니라** 브라우저가 Apps Script 웹앱에서 **GET**한 JSON(우선 `CHANNEL_*_MALL_PRODUCTS_API_URL`, 비우면 `CHANNEL_*_PRODUCT_DELIVERY_WEBAPP_URL`과 동일 URL로 폴백). 썸네일은 **전역** `COUPANG_IMAGE_WORKER_BASE`(비우면 `https://image.shortcrew.co.kr/`)
+- `/{name_slug}` 인플 독립몰 허브(상품 탭 기본). `/{name_slug}/review`, `/{name_slug}/introduce`는 각 탭 URL. **상품 목록은 DB가 아니라** 브라우저가 Apps Script 웹앱에서 **GET**한 JSON(우선 `CHANNEL_*_MALL_PRODUCTS_API_URL`, 비우면 `CHANNEL_*_PRODUCT_DELIVERY_WEBAPP_URL`과 동일 URL로 폴백). 썸네일은 **전역** `COUPANG_IMAGE_WORKER_BASE`(비우면 `https://image.shortcrew.co.kr/`)
 - `/{name_slug}/review/{review_id}` 리뷰 상세
 - 레거시 `/shop/...`, `/reviews/...` 는 새 경로로 **301** 리다이렉트
 - `POST /api/click` 클릭 로그

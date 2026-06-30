@@ -30,9 +30,10 @@ def _load_dotenv_for_db() -> None:
 
 _load_dotenv_for_db()
 
-# DB 연결은 `.env` 의 DATABASE_URL 로 결정한다. 미설정 시에만 로컬 SQLite 로 폴백.
-# 예) mysql+pymysql://sswik:****@127.0.0.1:3306/crews
-DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip() or "sqlite:///./database.db"
+# DB 연결은 `.env` 의 DATABASE_URL 로 결정한다(필수). 예) mysql+pymysql://sswik:****@127.0.0.1:3306/crews
+DATABASE_URL = (os.environ.get("DATABASE_URL") or "").strip()
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL 이 설정되지 않았습니다. .env 의 DATABASE_URL(MySQL crews) 을 확인하라.")
 
 
 class Base(DeclarativeBase):
@@ -163,17 +164,11 @@ class DmAutomation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args={"check_same_thread": False},
-    )
-else:
-    # MySQL 등: 끊긴 커넥션 자동 감지(pre_ping) + 오래된 커넥션 재활용.
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=3600,
-    )
+# MySQL: 끊긴 커넥션 자동 감지(pre_ping) + 오래된 커넥션 재활용.
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

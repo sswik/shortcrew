@@ -9,7 +9,7 @@
 | 프로젝트명 | shortcrew (인플루언서별 동적 상품·리뷰 허브) |
 | 제품군 | 인플루언서 계열 (지식채널 계열은 자매 제품 short-mall) |
 | 식별자/도메인 | `shortcrew` / `shortcrew.co.kr` |
-| 기술 스택 | **FastAPI / SQLAlchemy + SQLite / Jinja2 / Docker + Cloudflare Tunnel** |
+| 기술 스택 | **FastAPI / SQLAlchemy + MySQL(crews) / Jinja2 / Docker + Cloudflare Tunnel** |
 | 공개 포트 | `127.0.0.1:8028` |
 | 외부 연동 | Google Sheets(Apps Script), 쿠팡 파트너스, Instagram Graph API, 네이버 데이터랩, Google Gemini, YouTube Data API |
 

@@ -453,7 +453,7 @@ async def post_mall_import_from_sheet(
     body: MallImportFromSheetBody,
     _: None = Depends(require_admin),
 ):
-    """공개 몰은 SQLite가 아니라 시트 JSON API만 사용한다. 시트 행 수·몰 GET URL(전용 또는 전달 웹훅 URL 폴백) 설정만 점검한다."""
+    """공개 몰은 DB가 아니라 시트 JSON API만 사용한다. 시트 행 수·몰 GET URL(전용 또는 전달 웹훅 URL 폴백) 설정만 점검한다."""
     from ..channels import get_channels
     from ..services.google_sheets import get_all_rows
 

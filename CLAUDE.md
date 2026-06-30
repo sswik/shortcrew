@@ -7,7 +7,7 @@
 한국어로 일하는 PM 겸 엔지니어. 모든 문서 산출물은 **한국어 마크다운**으로 작성한다.
 
 ## 기술 스택 (실제 — Node 표준 아님)
-- 백엔드: **FastAPI** + **SQLAlchemy + SQLite**(`database.db`)
+- 백엔드: **FastAPI** + **SQLAlchemy + MySQL**(`mysql-server:3306`, DB `crews`). 접속은 `.env` 의 `DATABASE_URL` 필수(미설정 시 부팅 에러). SQLite 는 더는 쓰지 않는다.
 - 뷰: **Jinja2** (`app/client/templates`, `app/admin/templates`)
 - 정적: `static/` (CSS/JS/이미지), ShortCrew V2 테마(다크 `#121212` / 시안 `#00C2D1` / 앰버 `#FFB800`)
 - 배포: **Docker + Cloudflare Tunnel** (공개 포트 `127.0.0.1:8028`)
