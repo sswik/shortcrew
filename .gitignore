@@ -39,3 +39,4 @@ sample/
 
 # n8n 실제 워크플로우 export (자동화 작업용 보관 — 시크릿 포함 가능, 추적 제외)
 n8n-sample/
+n8n-production/
