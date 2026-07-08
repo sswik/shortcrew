@@ -1,6 +1,6 @@
-"""안지아픽 — 보안 인플루언서. channel_id·env 접두어 `105` — `.env` 의 `CHANNEL_105_*`.
+"""안지아픽 — 테크 인플루언서. channel_id·env 접두어 `305` — `.env` 의 `CHANNEL_305_*`.
 
-홈캠카오스(지식쇼츠, short-mall) 와 세트. 영상 주제 기반 쿠팡 큐레이션 상품을 이 몰(/safety)에 적재한다.
+신규 유튜브채널(WF305)로 3xx 리넘버 이전(옛 105 보안→305 테크). 영상 주제 기반 쿠팡 큐레이션 상품을 이 몰(/tech)에 적재한다.
 상품 공급원(시트/큐레이션)이 비어 있으면 빈 몰로 동작한다.
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ import os
 from ..constants import COMMON_HISTORY_FILE_ID, NAVER_CATEGORY_IDS
 from ..env_names import channel_env
 
-_CID = "105"
+_CID = "305"
 
 
 def _env_truthy(key: str) -> bool:
@@ -29,7 +29,7 @@ def build() -> dict:
     ).strip()
     return {
         "channel_id": _CID,
-        "name": "안지아픽(보안인플루언서)",
+        "name": "안지아픽(테크인플루언서)",
         "google_sheet_id": os.getenv(channel_env(_CID, "FILE_ID"), "").strip(),
         "sheet_tab_name": os.getenv(channel_env(_CID, "TAB"), "상품목록").strip() or "상품목록",
         "history_sheet_id": COMMON_HISTORY_FILE_ID,
@@ -40,9 +40,9 @@ def build() -> dict:
             channel_env(_CID, "MALL_PRODUCTS_CHANNEL_PARAM"),
             "",
         ).strip(),
-        # 비우면 어드민·쇼츠 매칭에서 채널을 못 찾음 → DB 인플 slug `safety` 와 동일하게 둔다.
+        # 비우면 어드민·쇼츠 매칭에서 채널을 못 찾음 → DB 인플 slug `tech` 와 동일하게 둔다.
         "mall_influencer_slug": (
-            os.getenv(channel_env(_CID, "MALL_INFLUENCER_SLUG"), "").strip() or "safety"
+            os.getenv(channel_env(_CID, "MALL_INFLUENCER_SLUG"), "").strip() or "tech"
         ),
         "naver_category_id": [
             NAVER_CATEGORY_IDS["디지털/가전"],

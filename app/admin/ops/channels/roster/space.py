@@ -1,4 +1,4 @@
-"""지서아픽(공간인플루언서) — channel_id·env 접두어 `111` — `.env` 의 `CHANNEL_111_*`. 큐레이션 인플루언서(세트)."""
+"""지서아픽(공간인플루언서) — channel_id·env 접두어 `311` — `.env` 의 `CHANNEL_311_*`. 큐레이션 인플루언서(세트)."""
 from __future__ import annotations
 
 import os
@@ -6,7 +6,7 @@ import os
 from ..constants import COMMON_HISTORY_FILE_ID, NAVER_CATEGORY_IDS
 from ..env_names import channel_env
 
-_CID = "111"
+_CID = "311"
 
 
 def _env_truthy(key: str) -> bool:

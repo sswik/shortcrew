@@ -27,15 +27,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .roster import golf, safety, science, shopping, space, tennis
+from .roster import golf, science, shopping, space, tech, tennis
 
+# 전 인플루언서 3xx 리넘버 완료. tech.py = 옛 safety.py(안지아 105→305, slug safety→tech).
 ChannelBuilder = Callable[[], dict]
 
 CHANNEL_BUILDERS: tuple[ChannelBuilder, ...] = (
-    golf.build,
-    tennis.build,
-    shopping.build,
-    safety.build,
-    space.build,
-    science.build,
+    golf.build,      # 302 오세련(골프)
+    tennis.build,    # 303 왕세림(테니스)
+    shopping.build,  # 304 한소율(쇼핑)
+    tech.build,      # 305 안지아(테크)
+    science.build,   # 310 정세윤(사이언스)
+    space.build,     # 311 지서아(스페이스)
 )

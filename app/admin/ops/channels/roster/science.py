@@ -1,4 +1,4 @@
-"""정세윤픽(테크인플루언서) — channel_id·env 접두어 `110` — `.env` 의 `CHANNEL_110_*`. 큐레이션 인플루언서(세트)."""
+"""정세윤픽(테크인플루언서) — channel_id·env 접두어 `310` — `.env` 의 `CHANNEL_310_*`. 큐레이션 인플루언서(세트)."""
 from __future__ import annotations
 
 import os
@@ -6,7 +6,7 @@ import os
 from ..constants import COMMON_HISTORY_FILE_ID, NAVER_CATEGORY_IDS
 from ..env_names import channel_env
 
-_CID = "110"
+_CID = "310"
 
 
 def _env_truthy(key: str) -> bool:

@@ -6,7 +6,7 @@ import os
 from ..constants import COMMON_HISTORY_FILE_ID, NAVER_CATEGORY_IDS
 from ..env_names import channel_env
 
-_CID = "104"
+_CID = "304"
 
 
 def _env_truthy(key: str) -> bool:
