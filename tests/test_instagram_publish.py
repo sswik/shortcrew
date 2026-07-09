@@ -66,8 +66,8 @@ class TestPublishReel(unittest.TestCase):
         _FakeAsyncClient.posts = []
         self._env = mock.patch.dict(os.environ, {
             "OPS_API_TOKEN": "secret-token",
-            "CHANNEL_105_IG_ACCOUNT_ID": "17841422626136472",
-            "CHANNEL_105_IG_ACCESS_TOKEN": "IGAF-token",
+            "CHANNEL_305_IG_ACCOUNT_ID": "17841422626136472",
+            "CHANNEL_305_IG_ACCESS_TOKEN": "IGAF-token",
         })
         self._env.start()
         self.client = TestClient(_make_app())
@@ -76,7 +76,7 @@ class TestPublishReel(unittest.TestCase):
         self._env.stop()
 
     def _body(self, **over):
-        b = {"channel_id": "105", "video_url": "https://drive/x.mp4", "caption": "보안팁"}
+        b = {"channel_id": "305", "video_url": "https://drive/x.mp4", "caption": "보안팁"}
         b.update(over)
         return b
 
@@ -139,7 +139,7 @@ class TestOpsTokenUnset(unittest.TestCase):
             client = TestClient(_make_app())
             r = client.post(
                 "/admin/api/ops/instagram/publish-reel",
-                json={"channel_id": "105", "video_url": "x"},
+                json={"channel_id": "305", "video_url": "x"},
                 headers={"X-Ops-Token": "anything"},
             )
         self.assertEqual(r.status_code, 503)

@@ -1,4 +1,4 @@
-"""한소율픽 — 쇼핑 인플루언서. `roster/shopping.py`. channel_id·env 접두어 `104` — `.env` 의 `CHANNEL_104_*`."""
+"""한소율픽 — 쇼핑 인플루언서. `roster/shopping.py`. channel_id·env 접두어 `304` — `.env` 의 `CHANNEL_304_*`."""
 from __future__ import annotations
 
 import os

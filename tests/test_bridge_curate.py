@@ -88,8 +88,8 @@ class TestBridgeCurate(unittest.TestCase):
             "COUPANG_ACCESS_KEY": "ak",
             "COUPANG_SECRET_KEY": "sk",
             "GOOGLE_GEMINI_KEY": "gk",
-            "CHANNEL_105_FILE_ID": "SHEET_X",
-            "CHANNEL_105_TAB": "안지아픽-상품",
+            "CHANNEL_305_FILE_ID": "SHEET_X",
+            "CHANNEL_305_TAB": "안지아픽-상품",
         })
         self._env.start()
         self.client = TestClient(_make_app())
@@ -102,7 +102,7 @@ class TestBridgeCurate(unittest.TestCase):
         return self.client.post("/admin/api/ops/bridge/curate", json=body, headers=h)
 
     def test_token_required(self) -> None:
-        self.assertEqual(self._post({"channel_id": "105"}, token="").status_code, 401)
+        self.assertEqual(self._post({"channel_id": "305"}, token="").status_code, 401)
 
     def test_unknown_channel(self) -> None:
         with mock.patch.object(bridge.coupang, "search_products", _fake_search):
@@ -113,11 +113,11 @@ class TestBridgeCurate(unittest.TestCase):
         with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
                 mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
-            r = self._post({"channel_id": "105", "dry_run": True})
+            r = self._post({"channel_id": "305", "dry_run": True})
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()
         self.assertEqual(d["mode"], "curate")
-        # 105 trend_keywords 중 '홈캠' 주제가 상품 선정됨
+        # 305 trend_keywords 중 '홈캠' 주제가 상품 선정됨
         picked = [p for p in d["picks"] if p["picked"]]
         self.assertTrue(len(picked) >= 1)
 
@@ -125,7 +125,7 @@ class TestBridgeCurate(unittest.TestCase):
         with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
                 mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
-            r = self._post({"channel_id": "105", "topics": ["현관 홈캠", "우주의 기원"], "dry_run": True})
+            r = self._post({"channel_id": "305", "topics": ["현관 홈캠", "우주의 기원"], "dry_run": True})
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()
         self.assertEqual(d["written_to_sheet"], 0)
@@ -140,7 +140,7 @@ class TestBridgeCurate(unittest.TestCase):
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks), \
                 mock.patch.object(google_sheets, "get_existing_values", _fake_existing), \
                 mock.patch.object(google_sheets, "append_rows", _fake_append):
-            r = self._post({"channel_id": "105", "topics": ["현관 홈캠 사각지대"], "dry_run": False})
+            r = self._post({"channel_id": "305", "topics": ["현관 홈캠 사각지대"], "dry_run": False})
         self.assertEqual(r.status_code, 200, r.text)
         d = r.json()
         self.assertEqual(d["written_to_sheet"], 1)
@@ -154,11 +154,11 @@ class TestBridgeCurate(unittest.TestCase):
         self.assertIn("lptag=deep", rows[0][6])
 
     def test_sheet_missing_returns_503(self) -> None:
-        with mock.patch.dict(os.environ, {"CHANNEL_105_FILE_ID": ""}), \
+        with mock.patch.dict(os.environ, {"CHANNEL_305_FILE_ID": ""}), \
                 mock.patch.object(bridge.coupang, "search_products", _fake_search), \
                 mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
-            r = self._post({"channel_id": "105", "topics": ["현관 홈캠"], "dry_run": False})
+            r = self._post({"channel_id": "305", "topics": ["현관 홈캠"], "dry_run": False})
         self.assertEqual(r.status_code, 503)
 
     def test_auto_blog_creates_review_with_sheet_fields(self) -> None:
@@ -170,7 +170,7 @@ class TestBridgeCurate(unittest.TestCase):
                 mock.patch.object(google_sheets, "append_rows", _fake_append), \
                 mock.patch.object(bridge, "generate_review_draft", _fake_review_draft):
             r = self._post({
-                "channel_id": "105", "topics": ["현관 홈캠 사각지대"],
+                "channel_id": "305", "topics": ["현관 홈캠 사각지대"],
                 "dry_run": False, "auto_blog": True,
             })
         self.assertEqual(r.status_code, 200, r.text)
@@ -182,7 +182,7 @@ class TestBridgeCurate(unittest.TestCase):
         self.assertIsNone(revs[0].product_id)
         self.assertEqual(revs[0].sheet_product_title, "샤오미 홈캠 2K")
         self.assertIn("lptag=deep", revs[0].sheet_product_deeplink)
-        self.assertEqual(revs[0].influencer_slug, "safety")
+        self.assertEqual(revs[0].influencer_slug, "tech")
 
     def test_auto_dm_creates_rule(self) -> None:
         from models import DmAutomation
@@ -192,7 +192,7 @@ class TestBridgeCurate(unittest.TestCase):
                 mock.patch.object(google_sheets, "get_existing_values", _fake_existing), \
                 mock.patch.object(google_sheets, "append_rows", _fake_append):
             r = self._post({
-                "channel_id": "105", "topics": ["현관 홈캠 사각지대"],
+                "channel_id": "305", "topics": ["현관 홈캠 사각지대"],
                 "dry_run": False, "auto_dm": True,  # dm_gemini 미지정 → 템플릿
             })
         self.assertEqual(r.status_code, 200, r.text)
@@ -200,7 +200,7 @@ class TestBridgeCurate(unittest.TestCase):
         self.assertEqual(d["dm_rules_created"], 1)
         dms = [o for o in _FakeDB.added if isinstance(o, DmAutomation)]
         self.assertEqual(len(dms), 1)
-        self.assertEqual(dms[0].channel_id, "105")
+        self.assertEqual(dms[0].channel_id, "305")
         self.assertEqual(dms[0].target_mode, "next")
         self.assertIn("lptag=deep", dms[0].dm_link)
         self.assertIn("샤오미 홈캠 2K", dms[0].dm_message)

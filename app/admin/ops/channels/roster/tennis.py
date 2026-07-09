@@ -1,4 +1,4 @@
-"""왕세림픽 — 테니스 인플루언서. `roster/tennis.py`. channel_id·env 접두어 `103` — `.env` 의 `CHANNEL_103_*`."""
+"""왕세림픽 — 테니스 인플루언서. `roster/tennis.py`. channel_id·env 접두어 `303` — `.env` 의 `CHANNEL_303_*`."""
 from __future__ import annotations
 
 import os
