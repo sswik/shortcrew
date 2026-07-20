@@ -1,9 +1,39 @@
 """Gemini 2.5 Flash를 활용한 트렌드 큐레이션 엔진 (구조화된 출력 적용)."""
 from __future__ import annotations
+import asyncio
 import json
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
+from google.genai import errors as genai_errors
+
+# 일시적 서버 오류(503 UNAVAILABLE 등) 대비 지수 백오프 재시도 설정.
+# Gemini 과부하(503)는 대개 순간적이라 몇 초 뒤 재시도로 대부분 흡수된다.
+_RETRY_ATTEMPTS = 4          # 최초 1회 + 재시도 3회
+_RETRY_BASE_DELAY = 1.0      # 1s → 2s → 4s (지수 백오프)
+
+
+async def _generate_with_retry(client: "genai.Client", **kwargs):
+    """``generate_content`` 호출을 일시적 서버 오류에 대해 지수 백오프로 재시도한다.
+
+    5xx(500/502/503/504)만 재시도한다 — 파라미터 오류(4xx)·인증 실패는 재시도해도
+    똑같이 실패하므로 즉시 올린다.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            return await client.aio.models.generate_content(**kwargs)
+        except genai_errors.ServerError as e:  # 일시적 과부하/게이트웨이 오류
+            last_exc = e
+            if attempt == _RETRY_ATTEMPTS - 1:
+                break
+            delay = _RETRY_BASE_DELAY * (2 ** attempt)
+            code = getattr(e, "code", "?")
+            print(f"Gemini 서버 오류({code}) — {delay:.0f}s 후 재시도 "
+                  f"{attempt + 1}/{_RETRY_ATTEMPTS - 1}")
+            await asyncio.sleep(delay)
+    assert last_exc is not None  # 루프가 최소 1회 돌아 반드시 설정됨
+    raise last_exc
 
 # 1. AI가 무조건 지켜야 하는 '출력 법률(Schema)'을 정의합니다.
 class CuratedItem(BaseModel):
@@ -46,7 +76,8 @@ async def curate_keywords_with_gemini(
 
     try:
         # 비동기(aio) 방식으로 Gemini 2.5 Flash 호출
-        response = await client.aio.models.generate_content(
+        response = await _generate_with_retry(
+            client,
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -114,7 +145,8 @@ async def pick_product_for_topic(
         "적합한 상품이 없으면 relevant=false, picked_index=-1."
     )
 
-    response = await client.aio.models.generate_content(
+    response = await _generate_with_retry(
+            client,
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(
@@ -153,7 +185,8 @@ async def generate_dm_message(
         "조건: 친근한 존댓말 2~3문장, 과장광고·수치과장 금지, 끝에 구매 링크 1개 포함, "
         "이모지 1개 정도, 200자 이내. 문구 텍스트만 출력."
     )
-    response = await client.aio.models.generate_content(
+    response = await _generate_with_retry(
+            client,
         model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(temperature=temperature),

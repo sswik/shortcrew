@@ -1,97 +1,352 @@
 {% extends "base.html" %}
 {% set ht = hub_tab|default('products') %}
+{% set t = mall_theme %}
 
-{% block title %}{{ influencer.display_name }} | 숏크루{% endblock %}
+{% block title %}{{ pump.display_name }} | 숏크루{% endblock %}
 
-{% block head_theme %}
-{% if mall_theme_style_tag %}{{ mall_theme_style_tag | safe }}{% endif %}
+{% block head_extra %}
+{% set meta_desc = (pump.bio or (pump.display_name ~ ' 쇼핑몰')) | trim %}
+<style id="mall-theme-sync">
+    :root {
+        --mall-theme-bg: {{ t.background | e }};
+        --mall-theme-card: {{ t.card | e }};
+        --mall-theme-accent: {{ t.accent | e }};
+        --mall-theme-warning: {{ (t.warning or '#f97316') | e }};
+        --mall-theme-text: {{ t.textMain | e }};
+        --mall-theme-text-sub: {{ t.textSub | e }};
+        --mall-theme-border: {{ t.border | e }};
+        --tap-accent: {{ mall_theme_tap | e }};
+    }
+
+    /* PC 접속이어도 모바일 셸 내부 상품 리스트는 1열 고정 */
+    @media (min-width: 721px) {
+        .shop-mobile-shell #shop-product-root.card-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    .shop-mobile-shell #shop-panel-products .shop-hero--products-slim,
+    .shop-mobile-shell #shop-panel-products .shop-section-band {
+        display: none !important;
+    }
+    .shop-mobile-shell #shop-product-root.card-grid {
+        grid-template-columns: 1fr !important;
+        gap: 0.7rem !important;
+        padding: 0.65rem;
+        margin-top: 0 !important;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product {
+        display: grid !important;
+        grid-template-columns: 96px minmax(0, 1fr);
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 16px;
+        border: 1px solid rgba(148, 163, 184, 0.28) !important;
+        background: #ffffff !important;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product > .product-card__media {
+        width: 96px !important;
+        margin: 0 !important;
+    }
+    .shop-mobile-shell #shop-product-root .product-card__media-frame {
+        width: 96px;
+        height: 96px;
+        aspect-ratio: 1 / 1;
+        border-radius: 10px;
+        background: #e2e8f0 !important;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product h3 {
+        margin: 0;
+        font-size: 0.86rem;
+        line-height: 1.3;
+        color: #111827 !important;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product .price {
+        margin: 0;
+        font-size: 0.92rem;
+        font-weight: 800;
+        color: #2563eb !important;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product .product-card__meta {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.2rem;
+        line-height: 1.25;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product .product-card__meta-sep {
+        color: #64748b;
+        font-size: 0.72rem;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product .product-card__content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0.35rem;
+        min-width: 0;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product,
+    .shop-mobile-shell #shop-product-root .card.card--product * {
+        cursor: pointer;
+    }
+    .shop-mobile-shell #shop-product-root .card.card--product .product-card__category {
+        display: inline-block;
+        margin: 0;
+        font-size: 0.72rem;
+        line-height: 1.25;
+        font-weight: 800;
+        color: #16a34a !important;
+    }
+
+    /* 블로그 탭 (모바일 퍼스트) */
+    .shop-mobile-shell #shop-panel-blog { padding: 0.75rem; }
+    .blog-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+    .blog-list__item {
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 16px;
+        background: #ffffff;
+        overflow: hidden;
+    }
+    .blog-list__item a { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 0.75rem; padding: 0.7rem; text-decoration: none; color: inherit; align-items: center; }
+    .blog-list__thumb { width: 84px; height: 84px; border-radius: 10px; object-fit: cover; background: #e2e8f0; }
+    .blog-list__title { margin: 0; font-size: 0.9rem; font-weight: 700; line-height: 1.35; color: #111827; }
+    .blog-list__excerpt { margin: 0.25rem 0 0; font-size: 0.78rem; color: #64748b; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .blog-list__date { margin: 0.3rem 0 0; font-size: 0.7rem; color: #94a3b8; }
+    .blog-empty { text-align: center; color: var(--mall-theme-text-sub, #94a3b8); padding: 2.5rem 1rem; font-size: 0.9rem; line-height: 1.6; }
+</style>
+<meta name="theme-color" content="{{ t.background | e }}" />
+<meta name="description" content="{{ meta_desc | e }}" />
+<meta property="og:title" content="{{ pump.display_name | e }}" />
+<meta property="og:description" content="{{ meta_desc | e }}" />
+<meta property="og:type" content="website" />
+{% if pump.profile_image %}
+<meta property="og:image" content="{{ pump.profile_image | e }}" />
+<link rel="preload" as="image" href="{{ pump.profile_image | e }}" />
+{% endif %}
+{% if pump.cover_image %}
+<link rel="preload" as="image" href="{{ pump.cover_image | e }}" />
+{% endif %}
 {% endblock %}
 
+{% block body_extra %} class="is-mall-public"{% endblock %}
+
+{% block main_extra_class %} page-body--mall{% endblock %}
+
 {% block content %}
-<div class="shop-page">
-{% if influencer.cover_image %}
-<section class="shop-hero shop-hero--cover" style="background-image: url('{{ influencer.cover_image | e }}');">
-{% else %}
-<section class="shop-hero">
-{% endif %}
-    <div class="shop-hero__overlay">
-        <img class="shop-hero__avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
-        <div class="shop-hero__text">
-            <h1 class="shop-hero__title">{{ influencer.display_name }}</h1>
-            {% set hero_bio = (influencer.bio or '') | trim %}
-            {% if hero_bio %}
-            <div class="shop-hero__lead">
-                <p class="shop-hero__bio shop-hero__bio--clamp">{{ hero_bio }}</p>
-                <a class="shop-hero__more" id="shop-hero-more" href="/{{ influencer.name_slug }}/introduce" hidden>더보기</a>
+<div class="shop-page shop-page--mobile">
+    <div class="shop-mobile-shell">
+        <div class="shop-mobile-sticky">
+            <div class="shop-mobile-top">
+                <img
+                    class="shop-mobile-top__avatar"
+                    src="{{ pump.profile_image | e }}"
+                    alt=""
+                    width="36"
+                    height="36"
+                    decoding="async"
+                />
+                <div class="shop-mobile-top__text">
+                    <h1 class="shop-mobile-top__title">{{ pump.display_name | e }}</h1>
+                    <p class="shop-mobile-top__sub">/{{ pump.name_slug | e }}</p>
+                </div>
             </div>
-            {% endif %}
+            <div class="shop-tabs" data-shop-tabs data-shop-public-slug="{{ pump.name_slug | e }}" data-initial-tab="{{ ht | e }}">
+                <div class="shop-tabs__list" role="tablist" aria-label="몰 메뉴">
+                    <a
+                        class="shop-tabs__tab"
+                        role="tab"
+                        id="shop-tab-products"
+                        data-shop-tab="products"
+                        href="/{{ pump.name_slug }}"
+                        aria-controls="shop-panel-products"
+                        aria-selected="{{ 'true' if ht == 'products' else 'false' }}"
+                        {% if ht != 'products' %}tabindex="-1"{% endif %}
+                        >상품</a>
+                    <a
+                        class="shop-tabs__tab"
+                        role="tab"
+                        id="shop-tab-blog"
+                        data-shop-tab="blog"
+                        href="/{{ pump.name_slug }}/blog"
+                        aria-controls="shop-panel-blog"
+                        aria-selected="{{ 'true' if ht == 'blog' else 'false' }}"
+                        {% if ht != 'blog' %}tabindex="-1"{% endif %}
+                        >블로그</a>
+                    <a
+                        class="shop-tabs__tab"
+                        role="tab"
+                        id="shop-tab-channel"
+                        data-shop-tab="channel"
+                        href="/{{ pump.name_slug }}/introduce"
+                        aria-controls="shop-panel-channel"
+                        aria-selected="{{ 'true' if ht == 'channel' else 'false' }}"
+                        {% if ht != 'channel' %}tabindex="-1"{% endif %}
+                        >소개</a>
+                </div>
+            </div>
         </div>
-    </div>
-</section>
 
-<div class="shop-section-band" aria-hidden="true"></div>
+        <section
+            class="shop-tab-panel"
+            id="shop-panel-products"
+            data-shop-panel="products"
+            role="tabpanel"
+            aria-labelledby="shop-tab-products"
+            {% if ht != 'products' %}hidden{% endif %}
+        >
+            <script id="shop-page-config" type="application/json">{{ shop_page_config | tojson }}</script>
 
-<div class="shop-tabs" data-shop-tabs data-shop-public-slug="{{ influencer.name_slug | e }}" data-initial-tab="{{ ht | e }}">
-    <div class="shop-tabs__list" role="tablist" aria-label="몰 메뉴">
-        <a class="shop-tabs__tab" role="tab" id="shop-tab-products" data-shop-tab="products" href="/{{ influencer.name_slug }}" aria-controls="shop-panel-products" aria-selected="{{ 'true' if ht == 'products' else 'false' }}" {% if ht != 'products' %}tabindex="-1"{% endif %}>상품</a>
-        <a class="shop-tabs__tab" role="tab" id="shop-tab-reviews" data-shop-tab="reviews" href="/{{ influencer.name_slug }}/review" aria-controls="shop-panel-reviews" aria-selected="{{ 'true' if ht == 'reviews' else 'false' }}" {% if ht != 'reviews' %}tabindex="-1"{% endif %}>포스트</a>
-        <a class="shop-tabs__tab" role="tab" id="shop-tab-channel" data-shop-tab="channel" href="/{{ influencer.name_slug }}/introduce" aria-controls="shop-panel-channel" aria-selected="{{ 'true' if ht == 'channel' else 'false' }}" {% if ht != 'channel' %}tabindex="-1"{% endif %}>소개</a>
+            <div id="shop-product-search" class="shop-product-search" role="search">
+                <div class="shop-product-search__inner">
+                    <span class="shop-product-search__icon" aria-hidden="true">
+                        <svg class="shop-product-search__svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </span>
+                    <input
+                        type="search"
+                        id="shop-product-search-input"
+                        class="shop-product-search__input"
+                        placeholder="상품 검색"
+                        autocomplete="off"
+                        enterkeyhint="search"
+                        aria-label="상품명 검색"
+                    />
+                </div>
+            </div>
+            <div id="shop-product-categories" class="shop-product-categories" role="group" aria-label="상품 카테고리" hidden></div>
+
+            <div id="shop-product-root" class="card-grid" aria-busy="true">
+                <p class="muted" id="shop-loading">상품을 불러오는 중…</p>
+            </div>
+            <nav id="shop-product-pager" class="shop-product-pager" aria-label="상품 페이지" hidden></nav>
+        </section>
+
+        <section
+            class="shop-tab-panel"
+            id="shop-panel-blog"
+            data-shop-panel="blog"
+            role="tabpanel"
+            aria-labelledby="shop-tab-blog"
+            data-blog-slug="{{ pump.name_slug | e }}"
+            {% if ht != 'blog' %}hidden{% endif %}
+        >
+            <ul id="shop-blog-root" class="blog-list" aria-busy="true"></ul>
+            <p class="blog-empty" id="shop-blog-empty" hidden>아직 발행된 블로그 글이 없어요.<br />곧 채워집니다.</p>
+        </section>
+
+        <section
+            class="shop-tab-panel"
+            id="shop-panel-channel"
+            data-shop-panel="channel"
+            role="tabpanel"
+            aria-labelledby="shop-tab-channel"
+            {% if ht != 'channel' %}hidden{% endif %}
+        >
+            <div class="shop-panel-lead shop-panel-lead--spacer" aria-hidden="true"></div>
+            <div class="channel-about">
+                <img class="channel-about__avatar" src="{{ pump.profile_image | e }}" alt="{{ pump.display_name | e }}" />
+                <h2>{{ pump.display_name | e }}</h2>
+                <p class="channel-about__bio">{{ (pump.bio or '채널 소개를 준비 중입니다.') | e }}</p>
+                <div class="channel-about__sns">
+                    {% if pump.youtube_url %}
+                    <a href="{{ pump.youtube_url | e }}" target="_blank" rel="noopener noreferrer"
+                        ><i class="fa-brands fa-youtube" aria-hidden="true"></i> YouTube</a>
+                    {% endif %}
+                    {% if pump.instagram_url %}
+                    <a href="{{ pump.instagram_url | e }}" target="_blank" rel="noopener noreferrer"
+                        ><i class="fa-brands fa-instagram" aria-hidden="true"></i> Instagram</a>
+                    {% endif %}
+                    {% if pump.tiktok_url %}
+                    <a href="{{ pump.tiktok_url | e }}" target="_blank" rel="noopener noreferrer"
+                        ><i class="fa-brands fa-tiktok" aria-hidden="true"></i> TikTok</a>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
     </div>
 </div>
 
-<div class="shop-section-band" aria-hidden="true"></div>
+<script>
+    (function () {
+        function normalizeProductCards() {
+            var root = document.getElementById("shop-product-root");
+            if (!root) return;
+            root.querySelectorAll(".btn.btn-primary").forEach(function (btn) {
+                if (btn && btn.parentNode) btn.parentNode.removeChild(btn);
+            });
+            root.querySelectorAll(".card.card--product").forEach(function (card) {
+                var content = card.querySelector(".product-card__content");
+                var title = content ? content.querySelector("h3") : null;
+                var price = card.querySelector(".price");
+                if (content && title && price && price.parentNode !== content) {
+                    content.insertBefore(price, title.nextSibling);
+                }
+                if (card.dataset.cardClickBound === "1") return;
+                card.dataset.cardClickBound = "1";
+                card.addEventListener("click", function (e) {
+                    if (e.target && e.target.closest && e.target.closest("a")) return;
+                    var anchor = card.matches("a") ? card : card.querySelector("a[href]");
+                    if (!anchor) return;
+                    if (anchor.target === "_blank") {
+                        window.open(anchor.href, "_blank", "noopener");
+                    } else {
+                        window.location.href = anchor.href;
+                    }
+                });
+            });
+        }
+        function boot() {
+            normalizeProductCards();
+            var root = document.getElementById("shop-product-root");
+            if (!root || !window.MutationObserver) return;
+            var mo = new MutationObserver(function () { normalizeProductCards(); });
+            mo.observe(root, { childList: true, subtree: true });
+        }
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", boot);
+        } else {
+            boot();
+        }
+    })();
 
-<section class="shop-tab-panel" id="shop-panel-products" data-shop-panel="products" role="tabpanel" aria-labelledby="shop-tab-products" {% if ht != 'products' %}hidden{% endif %}>
-    <script id="shop-page-config" type="application/json">{{ shop_page_config | tojson }}</script>
-    <label class="visually-hidden" for="shop-product-search">상품 검색</label>
-    <input type="search" id="shop-product-search" class="shop-product-search" placeholder="상품명 검색" autocomplete="off" />
-    <div id="shop-product-categories" class="shop-product-categories" role="group" aria-label="상품 카테고리" hidden></div>
-    <div id="shop-product-root" class="card-grid" aria-busy="true">
-        <p class="muted" id="shop-loading">상품을 불러오는 중…</p>
-    </div>
-    <nav id="shop-product-pager" class="shop-product-pager" aria-label="상품 페이지" hidden></nav>
-</section>
-
-<section class="shop-tab-panel" id="shop-panel-reviews" data-shop-panel="reviews" role="tabpanel" aria-labelledby="shop-tab-reviews" {% if ht != 'reviews' %}hidden{% endif %}>
-    <div class="shop-panel-lead shop-panel-lead--reviews">
-        <h2 class="shop-panel-lead__title" id="shop-panel-reviews-title">포스트</h2>
-    </div>
-    <div class="review-board" aria-labelledby="shop-panel-reviews-title">
-        {% for review in reviews %}
-        <a class="review-board__item" href="/{{ influencer.name_slug }}/review/{{ review.id }}">
-            <div>
-                <h3>{{ review.title }}</h3>
-                <p class="review-board__meta muted">{{ review.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
-            </div>
-            <span class="review-board__arrow">보기</span>
-        </a>
-        {% else %}
-        <p class="muted">등록된 포스트가 없습니다.</p>
-        {% endfor %}
-    </div>
-</section>
-
-<section class="shop-tab-panel" id="shop-panel-channel" data-shop-panel="channel" role="tabpanel" aria-labelledby="shop-tab-channel" {% if ht != 'channel' %}hidden{% endif %}>
-    <div class="shop-panel-lead shop-panel-lead--spacer" aria-hidden="true"></div>
-    <div class="channel-about">
-        <img class="channel-about__avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
-        <h2>{{ influencer.display_name }}</h2>
-        <p class="channel-about__bio">{{ influencer.bio or '채널 소개를 준비 중입니다.' }}</p>
-        <div class="channel-about__sns">
-            {% if influencer.youtube_url %}
-            <a href="{{ influencer.youtube_url }}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-youtube" aria-hidden="true"></i> YouTube</a>
-            {% endif %}
-            {% if influencer.instagram_url %}
-            <a href="{{ influencer.instagram_url }}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-instagram" aria-hidden="true"></i> Instagram</a>
-            {% endif %}
-            {% if influencer.tiktok_url %}
-            <a href="{{ influencer.tiktok_url }}" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-tiktok" aria-hidden="true"></i> TikTok</a>
-            {% endif %}
-        </div>
-    </div>
-</section>
-
+    // 블로그 탭: /api/blog?slug= 에서 글 목록을 가져와 렌더(없으면 빈 상태).
+    (function () {
+        var panel = document.getElementById("shop-panel-blog");
+        if (!panel) return;
+        var slug = panel.getAttribute("data-blog-slug") || "";
+        var loaded = false;
+        function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+        function render(posts) {
+            var root = document.getElementById("shop-blog-root");
+            var empty = document.getElementById("shop-blog-empty");
+            if (!root) return;
+            root.setAttribute("aria-busy", "false");
+            if (!posts || !posts.length) { root.innerHTML = ""; if (empty) empty.hidden = false; return; }
+            if (empty) empty.hidden = true;
+            root.innerHTML = posts.map(function (p) {
+                var thumb = p.thumbnail ? '<img class="blog-list__thumb" src="' + esc(p.thumbnail) + '" alt="" loading="lazy" />' : '<span class="blog-list__thumb" aria-hidden="true"></span>';
+                var href = p.url || "#";
+                return '<li class="blog-list__item"><a href="' + esc(href) + '">' + thumb +
+                    '<div><h3 class="blog-list__title">' + esc(p.title || "") + '</h3>' +
+                    (p.excerpt ? '<p class="blog-list__excerpt">' + esc(p.excerpt) + '</p>' : '') +
+                    (p.date ? '<p class="blog-list__date">' + esc(p.date) + '</p>' : '') +
+                    '</div></a></li>';
+            }).join("");
+        }
+        function load() {
+            if (loaded) return; loaded = true;
+            fetch("/api/blog?slug=" + encodeURIComponent(slug), { headers: { "Accept": "application/json" } })
+                .then(function (r) { return r.ok ? r.json() : { posts: [] }; })
+                .then(function (data) { render((data && data.posts) || []); })
+                .catch(function () { render([]); });
+        }
+        if (!panel.hasAttribute("hidden")) { load(); }
+        var tab = document.getElementById("shop-tab-blog");
+        if (tab) tab.addEventListener("click", load);
+    })();
+</script>
 <script src="/static/js/shop-tabs.js" defer></script>
 <script src="/static/js/shop-products.js" defer></script>
-</div>
 {% endblock %}

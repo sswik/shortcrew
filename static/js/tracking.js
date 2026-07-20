@@ -1,30 +1,22 @@
 /**
- * 클릭 로그 계약(숏크루 / shortcrew):
+ * 클릭 로그 계약(변경 시 shop-products.js·백오피스 리포트와 동시 검증):
  * - 트리거: `[data-track-click]` (캡처 단계)
- * - 인플루언서 식별: `data-influencer` (레거시 호환: data-pump fallback)
- * - 필드: influencer_slug, product_id, product_name?, deep_link?, review_id?
- * - 접속 정보: client_user_agent, page_url, referrer_snapshot → /admin/logs
+ * - 필드: pump_slug, product_id, product_name?, deep_link?, review_id?
+ * - 접속 정보(선택): client_user_agent, page_url, referrer_snapshot → /admin/logs 표시용
  */
 function sendClickFromButton(button) {
-    const influencerSlug = (
-        button.getAttribute("data-influencer") ||
-        button.getAttribute("data-pump") ||
-        ""
-    ).trim();
-    if (!influencerSlug) {
+    const pumpSlug = button.getAttribute("data-pump");
+    if (!pumpSlug) {
         return;
     }
     const productIdRaw = button.getAttribute("data-product-id");
-    const productId =
-        productIdRaw === null || productIdRaw === undefined || productIdRaw === ""
-            ? "0"
-            : String(productIdRaw);
+    const productId = productIdRaw === null || productIdRaw === undefined || productIdRaw === "" ? "0" : String(productIdRaw);
     const reviewId = button.getAttribute("data-review-id");
     const productName = button.getAttribute("data-product-name");
     const deepLink = button.getAttribute("data-deep-link") || button.getAttribute("href") || "";
 
     const body = new FormData();
-    body.append("influencer_slug", influencerSlug);
+    body.append("pump_slug", pumpSlug);
     body.append("product_id", productId);
     if (reviewId) body.append("review_id", String(reviewId));
     if (productName) body.append("product_name", String(productName));

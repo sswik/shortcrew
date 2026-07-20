@@ -147,9 +147,9 @@ async def curate_products(
         raise HTTPException(status_code=503, detail="COUPANG_ACCESS_KEY/SECRET_KEY 미설정")
     gem_key = _gemini_key()
 
-    slug = (ch.get("mall_influencer_slug") or "").strip()
+    slug = (ch.get("mall_pump_slug") or "").strip()
     if not slug:
-        raise HTTPException(status_code=400, detail=f"channel {body.channel_id} has no mall_influencer_slug")
+        raise HTTPException(status_code=400, detail=f"channel {body.channel_id} has no mall_pump_slug")
     persona = body.persona.strip() or f"{ch.get('name') or slug} 보안 상품 큐레이터"
 
     keywords = [k.strip() for k in (body.search_keywords or ch.get("trend_keywords") or []) if k.strip()]

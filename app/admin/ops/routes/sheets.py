@@ -463,14 +463,14 @@ async def post_mall_import_from_sheet(
     channel = next((c for c in get_channels() if c.get("channel_id") == cid), None)
     if not channel:
         return JSONResponse(status_code=404, content={"error": "channel not found"})
-    mall_slug = (channel.get("mall_influencer_slug") or "").strip()
+    mall_slug = (channel.get("mall_pump_slug") or "").strip()
     if not mall_slug:
         return JSONResponse(
             status_code=400,
             content={
                 "error": (
-                    "채널에 mall_influencer_slug 가 없습니다. "
-                    "`.env`에 예: CHANNEL_201_MALL_INFLUENCER_SLUG=인플루언서의 name_slug 를 넣으세요."
+                    "채널에 mall_pump_slug 가 없습니다. "
+                    "`.env`에 예: CHANNEL_201_MALL_PUMP_SLUG=인플루언서의 name_slug 를 넣으세요."
                 ),
             },
         )

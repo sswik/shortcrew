@@ -61,6 +61,29 @@ class Influencer(Base):
     reviews: Mapped[list["Review"]] = relationship(back_populates="influencer")
 
 
+class Pump(Base):
+    """펌프/인플루언서 몰 채널의 소개·테마 저장소(00식 통합).
+
+    공개 몰 `/{name_slug}` 이 소개 탭·테마를 여기서 읽는다. 상품은 시트 JSON 직독이라
+    이 테이블은 소개/테마 전용이며 products/reviews 관계를 두지 않는다.
+    `name_slug` 는 채널 `mall_pump_slug`(예: homecam·tech·golf)와 일치한다.
+    """
+
+    __tablename__ = "pumps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name_slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    shop_path_slug: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True, default=None)
+    display_name: Mapped[str] = mapped_column(String(200))
+    profile_image: Mapped[str] = mapped_column(String(255), default="")
+    bio: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    youtube_url: Mapped[str] = mapped_column(String(500), default="")
+    instagram_url: Mapped[str] = mapped_column(String(500), default="")
+    tiktok_url: Mapped[str] = mapped_column(String(500), default="")
+    cover_image: Mapped[str] = mapped_column(String(500), default="")
+    mall_theme_json: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+
+
 class Product(Base):
     __tablename__ = "products"
 

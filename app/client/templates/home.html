@@ -1,110 +1,62 @@
 {% extends "base.html" %}
 
-{% block title %}숏크루{% endblock %}
+{% block title %}숏크루 · 세상의 모든 숏폼 쇼핑몰{% endblock %}
+
+{% block head_extra %}
+<style>
+    .crew-landing { max-width: 560px; margin: 0 auto; padding: 1.25rem 0.9rem 3rem; }
+    .crew-landing__head { text-align: center; padding: 1.5rem 0 1.25rem; }
+    .crew-landing__title { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+    .crew-landing__sub { margin: 0.4rem 0 0; color: var(--text-muted, #94a3b8); font-size: 0.9rem; }
+    .crew-mall-list { list-style: none; margin: 1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+    .crew-mall-card {
+        display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 0.8rem;
+        padding: 0.7rem 0.85rem; border-radius: 16px;
+        border: 1px solid var(--border-line, #1e293b); background: var(--surface-card, #171717);
+        text-decoration: none; color: inherit; transition: border-color .15s ease, transform .05s ease;
+    }
+    .crew-mall-card:active { transform: scale(0.995); }
+    .crew-mall-card:hover { border-color: var(--cyan-main, #00c2d1); }
+    .crew-mall-card__thumb { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; background: #262626; }
+    .crew-mall-card__thumb--empty { display: grid; place-items: center; color: #64748b; }
+    .crew-mall-card__title { margin: 0; font-size: 0.98rem; font-weight: 700; line-height: 1.3; }
+    .crew-mall-card__desc { margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--text-muted, #94a3b8);
+        display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .crew-mall-card__yt { color: #ff0033; font-size: 1.15rem; padding: 0.4rem; }
+    .crew-landing__empty { text-align: center; color: var(--text-muted, #94a3b8); padding: 2.5rem 1rem; }
+</style>
+{% endblock %}
 
 {% block content %}
-<section class="hero hero--dense">
-    <div class="hero-brand">
-        <img class="mall-profile" src="/static/images/brand/logo.png" alt="숏크루">
-        <div>
-            <h1>숏크루</h1>
-            <p class="hero-tagline">AI 인플루언서가 하나의 크루처럼 — <strong>스포티 &amp; 테크</strong> 팬덤 플랫폼</p>
-            <p class="hero-sub">큐레이션으로 쇼핑 시간은 줄이고, 일상은 채웁니다.</p>
-        </div>
+<div class="crew-landing">
+    <div class="crew-landing__head">
+        <h1 class="crew-landing__title">숏크루</h1>
+        <p class="crew-landing__sub">세상의 모든 숏폼 쇼핑몰 · 눌러서 몰로 이동</p>
     </div>
-</section>
-
-<section id="creators" class="home-creators">
-    <h2 class="section-title">크루 라인업</h2>
-    <div class="creator-rank-list cue-card-deck">
-        {% for influencer in influencers %}
-        {% set meta = influencers_profile_meta.get(influencer.name_slug, {}) %}
-        {% set intro_bio = (influencer.bio or '') | trim %}
-        <article class="cue-card creator-rank-card">
-            <div class="cue-card__head">
-                <img class="creator-rank-card__avatar cue-card__avatar" src="{{ influencer.profile_image }}" alt="{{ influencer.display_name }}">
-                <div class="creator-rank-card__body cue-card__body">
-                    <h3 class="creator-rank-card__title cue-card__title">{{ influencer.display_name }}</h3>
-                    <p class="creator-rank-card__slug muted">@{{ influencer.name_slug }}</p>
-                    {% if meta.mbti %}
-                    <span class="cue-card__badge">{{ meta.mbti }}</span>
-                    {% endif %}
+    <ul class="crew-mall-list">
+        {% for pump in pumps %}
+        <li>
+            <a class="crew-mall-card" href="/{{ pump.name_slug }}">
+                {% if pump.profile_image %}
+                <img class="crew-mall-card__thumb" src="{{ pump.profile_image | e }}" alt="" width="52" height="52" loading="lazy" decoding="async" />
+                {% else %}
+                <span class="crew-mall-card__thumb crew-mall-card__thumb--empty" aria-hidden="true">—</span>
+                {% endif %}
+                <div>
+                    <p class="crew-mall-card__title">{{ pump.display_name | e }}</p>
+                    {% set desc = (pump.bio or "") | trim %}
+                    {% if desc %}<p class="crew-mall-card__desc">{{ desc | e }}</p>{% endif %}
                 </div>
-            </div>
-            <p class="creator-rank-card__bio cue-card__bio muted">{{ influencers_cue_tagline.get(influencer.name_slug, '') }}</p>
-            <template class="cue-card__intro-source" id="cue-intro-{{ influencer.name_slug }}">{{ intro_bio or '채널 소개를 준비 중입니다.' }}</template>
-            <div class="creator-rank-card__cta-row cue-card__cta-row" role="group" aria-label="소개·몰·SNS">
-                <button type="button" class="cue-card__pill cue-card__pill--intro"
-                        data-intro-slug="{{ influencer.name_slug | e }}"
-                        data-intro-name="{{ influencer.display_name | e }}">소개</button>
-                <a class="cue-card__pill cue-card__pill--shop" href="/{{ influencer.name_slug }}">쇼핑몰</a>
-                {% if influencer.youtube_url %}
-                <a class="cue-card__pill cue-card__pill--sns" href="{{ influencer.youtube_url }}" target="_blank" rel="noopener noreferrer">유튜브</a>
+                {% if pump.youtube_url %}
+                <span class="crew-mall-card__yt" aria-hidden="true"><i class="fa-brands fa-youtube"></i></span>
                 {% else %}
-                <span class="cue-card__pill cue-card__pill--sns is-disabled" aria-disabled="true">유튜브</span>
+                <span aria-hidden="true"></span>
                 {% endif %}
-                {% if influencer.instagram_url %}
-                <a class="cue-card__pill cue-card__pill--sns" href="{{ influencer.instagram_url }}" target="_blank" rel="noopener noreferrer">인스타그램</a>
-                {% else %}
-                <span class="cue-card__pill cue-card__pill--sns is-disabled" aria-disabled="true">인스타그램</span>
-                {% endif %}
-                {% if influencer.tiktok_url %}
-                <a class="cue-card__pill cue-card__pill--sns" href="{{ influencer.tiktok_url }}" target="_blank" rel="noopener noreferrer">틱톡</a>
-                {% else %}
-                <span class="cue-card__pill cue-card__pill--sns is-disabled" aria-disabled="true">틱톡</span>
-                {% endif %}
-            </div>
-        </article>
+            </a>
+        </li>
         {% else %}
-        <p class="muted">등록된 크루가 없습니다.</p>
+        <li class="crew-landing__empty">등록된 몰이 없습니다.</li>
         {% endfor %}
-    </div>
-</section>
-
-<dialog id="crew-intro-dialog" class="crew-intro-dialog" aria-labelledby="crew-intro-dialog-title">
-    <div class="crew-intro-dialog__panel">
-        <button type="button" class="crew-intro-dialog__close" aria-label="닫기">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-        </button>
-        <h2 id="crew-intro-dialog-title" class="crew-intro-dialog__title"></h2>
-        <div id="crew-intro-dialog-body" class="crew-intro-dialog__body"></div>
-    </div>
-</dialog>
-
-<script>
-(function () {
-    var dialog = document.getElementById("crew-intro-dialog");
-    var titleEl = document.getElementById("crew-intro-dialog-title");
-    var bodyEl = document.getElementById("crew-intro-dialog-body");
-    if (!dialog || !titleEl || !bodyEl) return;
-
-    function openIntro(slug, name) {
-        var tpl = document.getElementById("cue-intro-" + slug);
-        var text = tpl && tpl.content ? tpl.content.textContent.trim() : "";
-        if (!text) text = "채널 소개를 준비 중입니다.";
-        titleEl.textContent = (name || "") + " 소개";
-        bodyEl.textContent = text;
-        if (typeof dialog.showModal === "function") {
-            dialog.showModal();
-        }
-    }
-
-    function closeIntro() {
-        if (dialog.open) dialog.close();
-    }
-
-    document.querySelectorAll(".cue-card__pill--intro").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-            openIntro(btn.getAttribute("data-intro-slug") || "", btn.getAttribute("data-intro-name") || "");
-        });
-    });
-
-    var closeBtn = dialog.querySelector(".crew-intro-dialog__close");
-    if (closeBtn) closeBtn.addEventListener("click", closeIntro);
-    dialog.addEventListener("cancel", closeIntro);
-    dialog.addEventListener("click", function (e) {
-        if (e.target === dialog) closeIntro();
-    });
-})();
-</script>
+    </ul>
+</div>
 {% endblock %}
