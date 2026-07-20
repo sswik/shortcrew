@@ -23,9 +23,8 @@ from sqlalchemy.orm import Session
 from app.admin.deps import get_db
 from app.admin.ops.channels import get_channels
 from app.admin.ops.routes.instagram_publish import require_ops_token
-from app.admin.ops.services import coupang, gemini_curator
-from app.admin.ops.services.gemini_review_draft import generate_review_draft
-from models import DmAutomation, Pump, Review
+from app.admin.ops.services import blog_service, coupang, gemini_curator
+from models import BlogPost, DmAutomation, Pump
 
 
 def _dm_message_template(product_title: str, deeplink: str, persona: str = "") -> str:
@@ -265,36 +264,28 @@ async def curate_products(
         })
         pk["sheet"] = "ok"
 
-        # 블로그(Review) → DB. 시트상품을 sheet_product_* 로 1:1 연결(DB Product 미생성).
+        # 블로그 → DB(blog_posts). 상품이미지 필수(없으면 스킵). 즉시 published(몰 블로그 탭 노출).
         if want_blog:
             try:
                 price = float(p.get("price") or 0)
             except (TypeError, ValueError):
                 price = 0.0
             try:
-                draft = await generate_review_draft(
-                    gem_key,
-                    influencer_display=inf_display,
-                    influencer_slug=slug,
+                fields = await blog_service.generate_blog_fields(
+                    pump_slug=slug,
+                    pump_display=inf_display,
                     product_title=str(p.get("productName") or ""),
                     product_price=price,
                     product_url=deep or clean,
-                    image_url=str(p.get("imageUrl") or ""),
-                    extra_instruction=(
-                        f"이 글은 '{pk['topic']}' 주제의 쇼츠와 연결됩니다. "
-                        "해당 주제 맥락(보안 상황)을 도입부에 자연스럽게 녹이세요."
-                    ),
+                    product_image_url=str(p.get("imageUrl") or ""),
+                    topic=pk["topic"],
                 )
-                rev = Review(
-                    influencer_slug=slug,
-                    title=(draft.get("title") or str(p.get("productName") or ""))[:255],
-                    content=draft.get("html") or "",
-                    sheet_product_title=str(p.get("productName") or "")[:255],
-                    sheet_product_deeplink=(deep or clean)[:500],
-                )
-                db.add(rev)
+                fields["status"] = "published"
+                db.add(BlogPost(**fields))
                 blogs_created += 1
                 pk["blog"] = "ok"
+            except ValueError as e:  # 상품이미지 없음 등 → 블로그만 스킵(시트 적재는 유지)
+                pk["blog"] = f"skip: {str(e)[:60]}"
             except Exception as e:  # 블로그 실패해도 시트 적재는 유지
                 pk["blog"] = f"error: {str(e)[:80]}"
 

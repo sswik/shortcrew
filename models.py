@@ -84,6 +84,37 @@ class Pump(Base):
     mall_theme_json: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
 
 
+class BlogPost(Base):
+    """펌프 몰 블로그 글(정보성+상품리뷰 혼합).
+
+    각 글은 **상품 이미지 1개 필수**(텍스트만 불가) + 선택적으로 연관 유튜브 영상 임베드.
+    공개: 몰 블로그 탭 목록 + 개별 SEO 페이지 `/{pump_slug}/blog/{id}`.
+    IG 자동/수동 발행: 대표 상품이미지 1장 + 캡션 → 채널 IG 계정.
+    """
+
+    __tablename__ = "blog_posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    pump_slug: Mapped[str] = mapped_column(String(100), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    slug: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)  # SEO URL 보조(선택)
+    body_html: Mapped[str] = mapped_column(Text, default="")
+    excerpt: Mapped[str] = mapped_column(String(500), default="")
+    # 필수: 대표 상품 이미지(텍스트만 글 불가). IG 발행·썸네일·본문 상단에 사용.
+    product_image_url: Mapped[str] = mapped_column(String(1000), default="")
+    product_title: Mapped[str] = mapped_column(String(255), default="")
+    product_deeplink: Mapped[str] = mapped_column(String(1200), default="")
+    thumbnail: Mapped[str] = mapped_column(String(1000), default="")
+    # 연관 유튜브 영상(글 마지막 임베드). 없으면 임베드 생략.
+    youtube_url: Mapped[str] = mapped_column(String(500), default="")
+    source_topic: Mapped[str] = mapped_column(String(255), default="")
+    status: Mapped[str] = mapped_column(String(20), default="draft")  # draft | published
+    ig_media_id: Mapped[str] = mapped_column(String(64), default="")
+    ig_published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Product(Base):
     __tablename__ = "products"
 

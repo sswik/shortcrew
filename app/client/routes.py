@@ -23,7 +23,8 @@ from app.client.mall_products_service import (
     mall_products_response,
 )
 from app.client.mall_theme import pump_mall_theme, tap_highlight_rgba
-from models import ClickLog, Pump
+from app.admin.ops.services.blog_service import youtube_embed_html
+from models import BlogPost, ClickLog, Pump
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +79,27 @@ def api_mall_products(channel_id: str = "") -> Response:
 
 
 @router.get("/api/blog", response_model=None)
-def api_blog(slug: str = "") -> JSONResponse:
-    """블로그 글 목록 API. 발행 파이프라인은 후속 — 지금은 빈 목록(몰 블로그 탭 빈 상태)."""
+def api_blog(slug: str = "", db: Session = Depends(get_db)) -> JSONResponse:
+    """몰 블로그 탭 목록 API. 해당 펌프의 published 글을 최신순으로."""
     slug = (slug or "").strip()
-    posts: list[dict] = []
+    if not slug:
+        return JSONResponse({"slug": slug, "posts": []})
+    rows = db.scalars(
+        select(BlogPost)
+        .where(BlogPost.pump_slug == slug, BlogPost.status == "published")
+        .order_by(BlogPost.created_at.desc())
+    ).all()
+    posts = [
+        {
+            "id": p.id,
+            "title": p.title,
+            "excerpt": p.excerpt,
+            "thumbnail": p.thumbnail or p.product_image_url,
+            "url": f"/{quote(slug, safe='')}/blog/{p.id}",
+            "date": p.created_at.strftime("%Y-%m-%d") if p.created_at else "",
+        }
+        for p in rows
+    ]
     return JSONResponse({"slug": slug, "posts": posts})
 
 
@@ -206,6 +224,37 @@ def public_pump_blog_tab(
 ) -> HTMLResponse:
     pump = _load_pump_or_404(db, name_slug)
     return _pump_hub_page(request, pump=pump, hub_tab="blog")
+
+
+@router.get("/{name_slug}/blog/{post_id:int}", response_class=HTMLResponse)
+def public_blog_detail(
+    request: Request, name_slug: str, post_id: int, db: Session = Depends(get_db)
+) -> HTMLResponse:
+    """블로그 개별 글(SEO 페이지). 본문 + 상품이미지 + 마지막에 유튜브 임베드."""
+    pump = _load_pump_or_404(db, name_slug)
+    post = db.scalar(
+        select(BlogPost).where(
+            BlogPost.id == post_id,
+            BlogPost.pump_slug == pump.name_slug,
+            BlogPost.status == "published",
+        )
+    )
+    if post is None:
+        raise HTTPException(status_code=404, detail="글을 찾을 수 없습니다.")
+    mall_theme = pump_mall_theme(pump)
+    partners_lptag = (
+        os.environ.get("COUPANG_PARTNERS_LPTAG") or os.environ.get("COUPANG_LPTAG") or ""
+    ).strip()
+    ctx = {
+        "pump": pump,
+        "post": post,
+        "yt_embed_html": youtube_embed_html(post.youtube_url or ""),
+        "buy_url": post.product_deeplink or "",
+        "partners_lptag": partners_lptag,
+        "mall_theme": mall_theme,
+        "mall_theme_tap": tap_highlight_rgba(mall_theme.get("accent", "")),
+    }
+    return templates.TemplateResponse(request, "blog_detail.html", ctx)
 
 
 @router.get("/{name_slug}", response_class=HTMLResponse, response_model=None)
