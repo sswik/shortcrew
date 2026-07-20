@@ -25,7 +25,7 @@ from app.admin.ops.channels import get_channels
 from app.admin.ops.routes.instagram_publish import require_ops_token
 from app.admin.ops.services import coupang, gemini_curator
 from app.admin.ops.services.gemini_review_draft import generate_review_draft
-from models import DmAutomation, Influencer, Review
+from models import DmAutomation, Pump, Review
 
 
 def _dm_message_template(product_title: str, deeplink: str, persona: str = "") -> str:
@@ -65,7 +65,7 @@ def _find_channel(channel_id: str) -> dict | None:
 
 
 class CurateBody(BaseModel):
-    channel_id: str = "105"
+    channel_id: str = "05"
     topics: list[str] = []          # 영상 주제(씨앗). 비우면 후보풀만 미리보기.
     search_keywords: list[str] = []  # 후보풀 검색어. 비우면 채널 trend_keywords 사용.
     persona: str = ""               # Gemini 선정 페르소나. 비우면 채널명 기반.
@@ -150,7 +150,7 @@ async def curate_products(
     slug = (ch.get("mall_pump_slug") or "").strip()
     if not slug:
         raise HTTPException(status_code=400, detail=f"channel {body.channel_id} has no mall_pump_slug")
-    persona = body.persona.strip() or f"{ch.get('name') or slug} 보안 상품 큐레이터"
+    persona = body.persona.strip() or f"{ch.get('name') or slug} 상품 큐레이터"
 
     keywords = [k.strip() for k in (body.search_keywords or ch.get("trend_keywords") or []) if k.strip()]
     keywords = keywords[:_MAX_KEYWORDS]
@@ -240,7 +240,7 @@ async def curate_products(
     want_dm = body.auto_dm
     inf_display = slug
     if want_blog or want_dm:
-        inf = db.scalar(select(Influencer).where(Influencer.name_slug == slug))
+        inf = db.scalar(select(Pump).where(Pump.name_slug == slug))
         inf_display = inf.display_name if inf else slug
 
     sheet_rows: list[dict] = []
