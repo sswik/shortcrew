@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block title %}펌프 몰 관리 | 숏크루{% endblock %}
+{% block page_heading %}펌프 몰 관리{% endblock %}
+
+{% block content %}
+<div class="pb-16">
+    <p class="mb-6 text-sm text-slate-600">02~04 인플루언서 몰 + 05~37 펌프 몰. 소개·프로필·테마·SNS를 편집하면 공개 몰에 반영됩니다.</p>
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table class="w-full text-left text-sm">
+            <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                    <th class="px-4 py-3">몰</th>
+                    <th class="px-4 py-3">슬러그</th>
+                    <th class="px-4 py-3">소개</th>
+                    <th class="px-4 py-3">테마</th>
+                    <th class="px-4 py-3">블로그</th>
+                    <th class="px-4 py-3 text-right">액션</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for row in pump_rows %}
+                {% set p = row.pump %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            {% if p.profile_image %}<img src="{{ p.profile_image }}" alt="" class="h-8 w-8 rounded-full object-cover" />{% else %}<span class="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-400">—</span>{% endif %}
+                            <span class="font-medium text-slate-900">{{ p.display_name }}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 font-mono text-xs text-slate-600">{{ p.name_slug }}</td>
+                    <td class="px-4 py-3">{{ '✅' if p.bio else '—' }}</td>
+                    <td class="px-4 py-3">{{ '🎨' if p.mall_theme_json else '기본' }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ row.blog_count }}</td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center justify-end gap-1">
+                            <a href="/{{ p.name_slug }}" target="_blank" rel="noopener" class="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">보기 ↗</a>
+                            <a href="/admin/pumps/{{ p.name_slug }}/edit" class="rounded-md bg-primary px-2 py-1 text-xs font-medium text-white hover:bg-primary-700">편집</a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="px-4 py-10 text-center text-slate-400">펌프가 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

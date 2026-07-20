@@ -835,3 +835,72 @@ async def admin_blog_publish_ig(
     post.status = "published"
     db.commit()
     return RedirectResponse(url="/admin/blog", status_code=303)
+
+
+# ===== 펌프 몰 관리 (소개·테마 에디터) =====
+
+@router.get("/admin/pumps", response_class=HTMLResponse)
+def admin_pumps(
+    request: Request, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> HTMLResponse:
+    pumps = db.scalars(select(Pump).order_by(Pump.display_name)).all()
+    blog_rows = db.execute(
+        select(BlogPost.pump_slug, func.count(BlogPost.id)).group_by(BlogPost.pump_slug)
+    ).all()
+    blog_counts = {slug: int(cnt) for slug, cnt in blog_rows}
+    rows = [{"pump": p, "blog_count": blog_counts.get(p.name_slug, 0)} for p in pumps]
+    return templates.TemplateResponse(request, "pumps.html", {"pump_rows": rows})
+
+
+@router.get("/admin/pumps/{name_slug}/edit", response_class=HTMLResponse)
+def admin_pump_edit_get(
+    request: Request, name_slug: str, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> HTMLResponse:
+    pump = db.scalar(select(Pump).where(Pump.name_slug == name_slug))
+    if pump is None:
+        raise HTTPException(status_code=404, detail="펌프를 찾을 수 없습니다.")
+
+    def _pretty_json(raw):
+        if not raw or not str(raw).strip():
+            return ""
+        try:
+            return json.dumps(json.loads(raw), ensure_ascii=False, indent=2)
+        except json.JSONDecodeError:
+            return str(raw)
+
+    return templates.TemplateResponse(
+        request, "pump_edit.html",
+        {"pump": pump, "mall_theme_json_text": _pretty_json(pump.mall_theme_json)},
+    )
+
+
+@router.post("/admin/pumps/{name_slug}/edit")
+def admin_pump_edit_post(
+    name_slug: str,
+    _: None = Depends(require_admin),
+    db: Session = Depends(get_db),
+    display_name: str = Form(...),
+    profile_image: str = Form(""),
+    bio: str = Form(""),
+    youtube_url: str = Form(""),
+    instagram_url: str = Form(""),
+    tiktok_url: str = Form(""),
+    cover_image: str = Form(""),
+    mall_theme_json: str = Form(""),
+) -> RedirectResponse:
+    pump = db.scalar(select(Pump).where(Pump.name_slug == name_slug))
+    if pump is None:
+        raise HTTPException(status_code=404, detail="펌프를 찾을 수 없습니다.")
+    theme_parsed, theme_err = validate_mall_theme_json(mall_theme_json)
+    if theme_err:
+        raise HTTPException(status_code=400, detail=theme_err)
+    pump.display_name = display_name.strip()
+    pump.profile_image = (profile_image or "").strip()
+    pump.bio = (bio or "").strip() or None
+    pump.youtube_url = (youtube_url or "").strip()
+    pump.instagram_url = (instagram_url or "").strip()
+    pump.tiktok_url = (tiktok_url or "").strip()
+    pump.cover_image = (cover_image or "").strip()
+    pump.mall_theme_json = json.dumps(theme_parsed, ensure_ascii=False) if theme_parsed else None
+    db.commit()
+    return RedirectResponse(url="/admin/pumps", status_code=303)
