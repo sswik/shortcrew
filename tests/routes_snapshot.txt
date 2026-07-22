@@ -12,6 +12,7 @@
 /admin/api/ops/channels/{channel_id}/settings [GET]
 /admin/api/ops/channels/{channel_id}/settings [POST]
 /admin/api/ops/coupang/search [GET]
+/admin/api/ops/crosspost/reel [POST]
 /admin/api/ops/dm/channels [GET]
 /admin/api/ops/dm/media [GET]
 /admin/api/ops/dm/rules [GET]

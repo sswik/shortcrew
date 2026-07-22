@@ -1,43 +1,106 @@
-"""[구조 스텁] 유튜브 영상 발행 + 연결 인스타 자동 업로드 브리지.
+"""유튜브→인스타 크로스포스트 서비스 (전용).
 
-⚠️ 이 모듈은 **구조 세팅(스캐폴드)** 이다. 실제 발행 로직 연결·최종 n8n JSON 반영은
-   운영자가 확인 후 진행한다. Salog(n8n-sample/Salog/10-*)는 **참고만** 했고 코드는 섞지 않았다.
+배경: 이 플로우를 구동하는 n8n 은 **다른 n8n 클라우드**라, 기존 `/instagram/publish-reel`
+과 분리된 **전용 엔드포인트**로 둔다(라우트: `app/admin/ops/routes/crosspost.py`).
 
-설계 흐름 (06.운영가이드/12_유튜브발행_인스타자동업로드.md):
-  1) 렌더 완료 영상(공개 직링크; Drive 공개 URL 등)  ← n8n 이 준비
-  2) YouTube 업로드  ← **n8n `youTube`(OAuth2) 노드가 담당**(채널별 크리덴셜). 서버는 관여 안 함.
-  3) 연결 인스타에 릴스 자동 업로드  ← **기존 `POST /admin/api/ops/instagram/publish-reel` 재사용**
-     (채널 IG 계정=`CHANNEL_{id}_IG_*`, 컨테이너 생성→인코딩 폴링→발행까지 서버가 처리)
-  4) (선택) 발행 결과(youtube_id/ig_media_id) 앱으로 ingest → 시트/DB 기록
+역할 분담:
+  - YouTube 업로드  ← n8n `youTube`(OAuth2) 노드
+  - 영상 공개 URL   ← n8n(Drive 공개 등) 이 준비 (파일 소유 크리덴셜이 n8n 이므로)
+  - IG 릴스 발행    ← **여기(shortcrew)**: 컨테이너 생성 → 인코딩 폴링 → media_publish
 
-즉 shortcrew 는 **IG 발행만** 책임지고(이미 구현됨), YouTube 업로드는 n8n 이 맡는다.
-아래 함수들은 그 경계를 코드로 명시한 스텁이다(미배선).
+당일 신규·과거영상 백필 둘 다 이 함수를 호출한다. Salog 는 참고만 했고 코드는 섞지 않았다.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+import os
+
+import httpx
+
+from app.admin.ops.routes.dm import _ig_account
+
+# Reels 인코딩 폴링(엔드포인트가 끝까지 대기 후 발행까지 반환).
+_POLL_INTERVAL_S = 3.0
+_POLL_MAX_TRIES = 60  # 약 3분
 
 
-@dataclass
-class PublishPlan:
-    """한 영상의 발행 계획(스텁 반환용)."""
-
-    channel_id: str
-    video_public_url: str
-    caption: str
-    # YouTube 업로드는 n8n youTube 노드가 수행 — 서버는 결과만 ingest.
-    youtube_by: str = "n8n(youTube OAuth node)"
-    instagram_by: str = "POST /admin/api/ops/instagram/publish-reel"
+def _graph_version() -> str:
+    return (os.environ.get("IG_GRAPH_API_VERSION") or "v21.0").strip() or "v21.0"
 
 
-def build_publish_plan(*, channel_id: str, video_public_url: str, caption: str = "") -> PublishPlan:
-    """발행 계획 dict(스텁). 실제 호출은 n8n(YouTube) + publish-reel(IG)로 분리 수행."""
-    return PublishPlan(channel_id=channel_id, video_public_url=video_public_url, caption=caption)
+async def publish_reel_to_ig(
+    *,
+    channel_id: str,
+    video_url: str,
+    caption: str = "",
+    share_to_feed: bool = True,
+    dry_run: bool = False,
+) -> dict:
+    """공개 영상 직링크 → 채널 IG 릴스 발행. media_id 반환.
 
+    channel_id 는 00식 채널 id(02~37). IG 계정/토큰은 `CHANNEL_{id}_IG_*` env.
+    """
+    cid = (channel_id or "").strip()
+    vurl = (video_url or "").strip()
+    if not cid or not vurl:
+        raise ValueError("channel_id, video_url required")
+    acct, token = _ig_account(cid)
+    if not acct or not token:
+        raise ValueError(f"channel {cid} has no IG account/token")
 
-# --- 배선 예정(스텁) ---
-# async def upload_to_youtube(...):  # → n8n youTube 노드가 담당하므로 서버 구현 안 함(문서 참조).
-# async def crosspost_to_instagram(channel_id, video_public_url, caption):
-#     """기존 instagram_publish.publish_reel 을 그대로 호출하면 된다(별도 구현 불필요)."""
-#     from app.admin.ops.routes.instagram_publish import PublishReelBody, publish_reel
-#     return await publish_reel(PublishReelBody(channel_id=channel_id, video_url=video_public_url, caption=caption))
+    ver = _graph_version()
+    base = f"https://graph.instagram.com/{ver}"
+    create_payload = {
+        "media_type": "REELS",
+        "video_url": vurl,
+        "caption": caption or "",
+        "share_to_feed": "true" if share_to_feed else "false",
+    }
+    if dry_run:
+        return {
+            "dry_run": True,
+            "channel_id": cid,
+            "ig_account_id": acct,
+            "create_url": f"{base}/{acct}/media",
+            "create_payload": create_payload,
+            "publish_url": f"{base}/{acct}/media_publish",
+        }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1) 컨테이너 생성
+        r = await client.post(f"{base}/{acct}/media", data={**create_payload, "access_token": token})
+        if r.status_code >= 400:
+            raise RuntimeError(f"graph create {r.status_code}: {r.text[:300]}")
+        creation_id = str(r.json().get("id") or "").strip()
+        if not creation_id:
+            raise RuntimeError(f"no creation id: {r.text[:200]}")
+
+        # 2) 인코딩 완료 폴링
+        status = ""
+        for _try in range(_POLL_MAX_TRIES):
+            s = await client.get(
+                f"{base}/{creation_id}",
+                params={"fields": "status_code", "access_token": token},
+            )
+            if s.status_code < 400:
+                status = str(s.json().get("status_code") or "").upper()
+                if status == "FINISHED":
+                    break
+                if status in ("ERROR", "EXPIRED"):
+                    raise RuntimeError(f"container {status}: {s.text[:200]}")
+            await asyncio.sleep(_POLL_INTERVAL_S)
+        if status != "FINISHED":
+            raise RuntimeError(f"container not ready (last={status})")
+
+        # 3) 발행
+        p = await client.post(
+            f"{base}/{acct}/media_publish",
+            data={"creation_id": creation_id, "access_token": token},
+        )
+        if p.status_code >= 400:
+            raise RuntimeError(f"graph publish {p.status_code}: {p.text[:300]}")
+        media_id = str(p.json().get("id") or "").strip()
+        if not media_id:
+            raise RuntimeError(f"publish failed: {p.text[:200]}")
+
+    return {"ok": True, "channel_id": cid, "creation_id": creation_id, "media_id": media_id}
