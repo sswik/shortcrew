@@ -176,7 +176,8 @@ def _pump_hub_page(request: Request, *, pump: Pump, hub_tab: str) -> HTMLRespons
         public_base = str(request.base_url).rstrip("/")
     mall_fetch_url = ""
     if mall_channel_id:
-        mall_fetch_url = f"{public_base}/api/mall-products?channel_id={quote(mall_channel_id, safe='')}"
+        # 같은 오리진 상대경로 — PUBLIC_SITE_URL/호스트 무관하게 동작(로컬·프록시 안전).
+        mall_fetch_url = f"/api/mall-products?channel_id={quote(mall_channel_id, safe='')}"
     partners_lptag = (
         os.environ.get("COUPANG_PARTNERS_LPTAG") or os.environ.get("COUPANG_LPTAG") or ""
     ).strip()

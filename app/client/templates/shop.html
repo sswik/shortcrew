@@ -101,6 +101,19 @@
         color: #16a34a !important;
     }
 
+    /* 상품 검색바 */
+    .shop-product-search { padding: 0.7rem 0.65rem 0.4rem; }
+    .shop-product-search__inner { position: relative; display: flex; align-items: center; }
+    .shop-product-search__icon { position: absolute; left: 12px; display: inline-flex; width: 18px; height: 18px; color: #94a3b8; pointer-events: none; }
+    .shop-product-search__svg { width: 18px; height: 18px; }
+    .shop-product-search__input {
+        width: 100%; padding: 0.6rem 0.85rem 0.6rem 2.3rem; border-radius: 12px;
+        border: 1px solid var(--mall-theme-border, #1e293b); background: var(--mall-theme-card, #0f172a);
+        color: var(--mall-theme-text, #f8fafc); font-size: 0.9rem; outline: none;
+    }
+    .shop-product-search__input:focus { border-color: var(--mall-theme-accent, #7c3aed); }
+    .shop-product-search__input::placeholder { color: var(--mall-theme-text-sub, #94a3b8); }
+
     /* 블로그 탭 (모바일 퍼스트) */
     .shop-mobile-shell #shop-panel-blog { padding: 0.75rem; }
     .blog-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
