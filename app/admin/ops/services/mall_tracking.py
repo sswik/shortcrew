@@ -26,10 +26,10 @@ def public_site_origin(*, request: Request | None = None) -> str:
 
 
 def influencer_for_channel(db: Session | None, channel: dict) -> Influencer | None:
-    """채널 `mall_influencer_slug` 가 DB 인플루언서 `name_slug` 또는 `shop_path_slug` 와 일치하면 반환."""
+    """채널 `mall_pump_slug` 가 DB 인플루언서 `name_slug` 또는 `shop_path_slug` 와 일치하면 반환."""
     if db is None:
         return None
-    mall = (channel.get("mall_influencer_slug") or "").strip()
+    mall = (channel.get("mall_pump_slug") or "").strip()
     if not mall:
         return None
     return db.scalar(
@@ -43,7 +43,7 @@ def shop_public_path_slug(influencer: Influencer | None, channel: dict) -> str:
     """공개 몰 경로 `/{name_slug}` 에 쓰는 슬러그(브라우저 URL은 항상 `Influencer.name_slug`)."""
     if influencer is not None:
         return (influencer.name_slug or "").strip()
-    mall = (channel.get("mall_influencer_slug") or "").strip()
+    mall = (channel.get("mall_pump_slug") or "").strip()
     if mall and _SLUG_SAFE.match(mall.lower()):
         return mall.lower()
     return (channel.get("channel_id") or "").strip()

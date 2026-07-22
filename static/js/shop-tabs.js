@@ -1,6 +1,6 @@
 /**
- * 공개 몰: 상품 / 인플루언서 사용후기 / 소개 탭 패널 표시.
- * 탭은 `<a href="/{slug}">`, `/{slug}/review`, `/{slug}/introduce` 로 실제 이동(사용후기와 동일).
+ * 공개 몰: 상품 / 소개 탭 패널 표시.
+ * 탭은 `<a href="/{slug}">`, `/{slug}/introduce` 로 실제 이동.
  * 서버 `data-initial-tab`·URL과 패널 `hidden` 을 맞춘 뒤, 히어로 소개 2줄 초과 시에만「더보기」노출.
  */
 (function () {
@@ -10,12 +10,6 @@
             return "products";
         }
         if (parts.length === 1) {
-            return "products";
-        }
-        if (parts.length >= 2 && parts[1] === "review") {
-            if (parts.length === 2) {
-                return "reviews";
-            }
             return "products";
         }
         if (parts.length === 2 && parts[1] === "introduce") {

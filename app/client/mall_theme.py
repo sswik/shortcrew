@@ -58,7 +58,7 @@ def parse_mall_theme_json(raw: str | None) -> dict[str, str]:
         return base
     if not isinstance(data, dict):
         return base
-    for key in _THEM_KEYS:
+    for key in _THEME_KEYS:
         val = data.get(key)
         if val is None:
             continue
@@ -113,6 +113,25 @@ def theme_to_css_vars(theme: dict[str, str] | None = None) -> str:
         f"--text-muted:{text_sub};"
         f"--border-line:{border};"
     )
+
+
+def tap_highlight_rgba(hex_color: str, alpha: float = 0.35) -> str:
+    """탭 하이라이트/버튼용 rgba (accent 기반). pump 몰 shop.html 의 `--tap-accent`."""
+    s = _expand_hex((hex_color or "").strip())
+    if len(s) != 7:
+        s = SHORTCREW_DEFAULT_THEME.get("accent", "#7c3aed")
+    try:
+        r, g, b = int(s[1:3], 16), int(s[3:5], 16), int(s[5:7], 16)
+    except ValueError:
+        r, g, b = 124, 58, 237
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def pump_mall_theme(pump: Any | None) -> dict[str, str]:
+    """pump 몰 템플릿용 테마 dict. `mall_theme_json`(HEX) 병합 + `warning` 보장."""
+    theme = get_mall_theme(pump)
+    theme.setdefault("warning", "#f97316")
+    return theme
 
 
 def validate_profile_meta_json(raw: str) -> tuple[dict[str, Any] | None, str | None]:

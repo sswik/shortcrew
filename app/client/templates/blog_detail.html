@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set t = mall_theme %}
+
+{% block title %}{{ post.title }} | {{ pump.display_name }}{% endblock %}
+
+{% block head_extra %}
+<meta name="description" content="{{ (post.excerpt or post.title) | e }}" />
+<meta property="og:title" content="{{ post.title | e }}" />
+<meta property="og:description" content="{{ (post.excerpt or post.title) | e }}" />
+<meta property="og:type" content="article" />
+{% if post.product_image_url %}
+<meta property="og:image" content="{{ post.product_image_url | e }}" />
+{% endif %}
+<style>
+    :root { --tap-accent: {{ mall_theme_tap | e }}; }
+    .page-body--mall .container { padding: 0; }
+    .blog-article { max-width: 680px; margin: 1rem auto; padding: 1.1rem 1.15rem 2.5rem; color: #1f2937; background: #ffffff; border-radius: 18px; }
+    @media (max-width: 700px) { .blog-article { margin: 0.5rem; border-radius: 14px; } }
+    .blog-article__crumbs { font-size: 0.8rem; color: #64748b; padding: 0.6rem 0; }
+    .blog-article__crumbs a { color: #64748b; text-decoration: none; }
+    .blog-article__title { font-size: 1.4rem; font-weight: 800; line-height: 1.3; margin: 0.2rem 0 0.6rem; color: #111827; }
+    .blog-article__meta { font-size: 0.78rem; color: #94a3b8; margin: 0 0 1rem; }
+    .blog-article__hero { width: 100%; border-radius: 16px; background: #e2e8f0; object-fit: cover; aspect-ratio: 1/1; max-height: 420px; }
+    .blog-article__body { font-size: 0.98rem; line-height: 1.75; margin-top: 1.1rem; }
+    .blog-article__body h2, .blog-article__body h3 { line-height: 1.35; margin: 1.4rem 0 0.6rem; color: #111827; }
+    .blog-article__body p { margin: 0 0 0.9rem; }
+    .blog-article__body img { max-width: 100%; border-radius: 12px; }
+    .blog-buy {
+        display: block; text-align: center; margin: 1.5rem 0; padding: 0.95rem 1rem;
+        border-radius: 14px; background: var(--tap-accent, #7c3aed); color: #fff; font-weight: 800;
+        text-decoration: none; font-size: 1rem;
+    }
+    .blog-disclosure { font-size: 0.72rem; color: #94a3b8; text-align: center; margin-top: 1.5rem; line-height: 1.5; }
+</style>
+{% endblock %}
+
+{% block body_extra %} class="is-mall-public"{% endblock %}
+{% block main_extra_class %} page-body--mall{% endblock %}
+
+{% block content %}
+<article class="blog-article">
+    <nav class="blog-article__crumbs" aria-label="탐색">
+        <a href="/{{ pump.name_slug }}">{{ pump.display_name | e }}</a> ·
+        <a href="/{{ pump.name_slug }}/blog">블로그</a>
+    </nav>
+    <h1 class="blog-article__title">{{ post.title | e }}</h1>
+    <p class="blog-article__meta">{{ post.created_at.strftime('%Y-%m-%d') if post.created_at else '' }}</p>
+
+    {% if post.product_image_url %}
+    <img class="blog-article__hero" src="{{ post.product_image_url | e }}" alt="{{ post.product_title | e }}" loading="eager" decoding="async" />
+    {% endif %}
+
+    <div class="blog-article__body">
+        {{ post.body_html | safe }}
+    </div>
+
+    {% if buy_url %}
+    <a class="blog-buy" href="{{ buy_url | e }}" target="_blank" rel="nofollow noopener sponsored"
+       data-pump="{{ pump.name_slug | e }}">🛒 {{ post.product_title or '상품 보러가기' | e }} · 최저가 확인</a>
+    {% endif %}
+
+    {% if yt_embed_html %}
+    <section aria-label="관련 영상">
+        <h2 style="font-size:1rem;margin:1.6rem 0 0.2rem;color:#111827;">🎬 관련 영상</h2>
+        {{ yt_embed_html | safe }}
+    </section>
+    {% endif %}
+
+    <p class="blog-disclosure">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>
+</article>
+{% endblock %}

@@ -41,7 +41,7 @@ from app.core.config import KST
 from app.core.db import get_db
 from app.core.helpers import _ellipsis_middle, _ua_os_browser
 from app.core.templates import templates
-from models import ClickLog, Influencer, Product, Review
+from models import BlogPost, ClickLog, Influencer, Product, Pump, Review
 
 logger = logging.getLogger(__name__)
 
@@ -667,3 +667,240 @@ def admin_logs(
         "logs.html",
         {"log_rows": log_rows, "log_limit": log_limit},
     )
+
+
+# ===== 블로그 관리 (에디터 UI) — blog_posts CRUD =====
+
+def _blog_form_ctx(db: Session, post: BlogPost | None):
+    pumps = db.scalars(select(Pump).order_by(Pump.display_name)).all()
+    return {"pumps": pumps, "post": post}
+
+
+@router.get("/admin/blog", response_class=HTMLResponse)
+def admin_blog_list(
+    request: Request,
+    _: None = Depends(require_admin),
+    db: Session = Depends(get_db),
+    slug: str = "",
+) -> HTMLResponse:
+    pumps = db.scalars(select(Pump).order_by(Pump.display_name)).all()
+    stmt = select(BlogPost).order_by(BlogPost.created_at.desc())
+    if (slug or "").strip():
+        stmt = stmt.where(BlogPost.pump_slug == slug.strip())
+    posts = db.scalars(stmt).all()
+    return templates.TemplateResponse(
+        request, "blog_list.html", {"pumps": pumps, "posts": posts, "filter_slug": (slug or "").strip()}
+    )
+
+
+@router.get("/admin/blog/new", response_class=HTMLResponse)
+def admin_blog_new(
+    request: Request, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> HTMLResponse:
+    return templates.TemplateResponse(request, "blog_form.html", _blog_form_ctx(db, None))
+
+
+@router.get("/admin/blog/{post_id}/edit", response_class=HTMLResponse)
+def admin_blog_edit(
+    request: Request, post_id: int, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> HTMLResponse:
+    post = db.get(BlogPost, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="블로그 글을 찾을 수 없습니다.")
+    return templates.TemplateResponse(request, "blog_form.html", _blog_form_ctx(db, post))
+
+
+def _blog_fields_from_form(
+    *, pump_slug, title, body_html, excerpt, product_image_url, product_title,
+    product_deeplink, youtube_url, status,
+) -> dict:
+    import re as _re
+    body = (body_html or "").strip()
+    ex = (excerpt or "").strip() or _re.sub(r"<[^>]+>", "", body)[:300].strip()
+    return {
+        "pump_slug": (pump_slug or "").strip(),
+        "title": (title or "").strip()[:255],
+        "body_html": body,
+        "excerpt": ex[:500],
+        "product_image_url": (product_image_url or "").strip()[:1000],
+        "product_title": (product_title or "").strip()[:255],
+        "product_deeplink": (product_deeplink or "").strip()[:1200],
+        "thumbnail": (product_image_url or "").strip()[:1000],
+        "youtube_url": (youtube_url or "").strip()[:500],
+        "status": "published" if (status or "").strip() == "published" else "draft",
+    }
+
+
+@router.post("/admin/blog")
+def admin_blog_create(
+    _: None = Depends(require_admin),
+    db: Session = Depends(get_db),
+    pump_slug: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(""),
+    excerpt: str = Form(""),
+    product_image_url: str = Form(""),
+    product_title: str = Form(""),
+    product_deeplink: str = Form(""),
+    youtube_url: str = Form(""),
+    status: str = Form("draft"),
+) -> Response:
+    if not (product_image_url or "").strip():
+        raise HTTPException(status_code=400, detail="상품 이미지 URL은 필수입니다(텍스트만 글 금지).")
+    fields = _blog_fields_from_form(
+        pump_slug=pump_slug, title=title, body_html=content, excerpt=excerpt,
+        product_image_url=product_image_url, product_title=product_title,
+        product_deeplink=product_deeplink, youtube_url=youtube_url, status=status,
+    )
+    post = BlogPost(**fields)
+    db.add(post)
+    db.commit()
+    return RedirectResponse(url=f"/admin/blog/{post.id}/edit", status_code=303)
+
+
+@router.post("/admin/blog/{post_id}/edit")
+def admin_blog_update(
+    post_id: int,
+    _: None = Depends(require_admin),
+    db: Session = Depends(get_db),
+    pump_slug: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(""),
+    excerpt: str = Form(""),
+    product_image_url: str = Form(""),
+    product_title: str = Form(""),
+    product_deeplink: str = Form(""),
+    youtube_url: str = Form(""),
+    status: str = Form("draft"),
+) -> Response:
+    post = db.get(BlogPost, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="블로그 글을 찾을 수 없습니다.")
+    if not (product_image_url or "").strip():
+        raise HTTPException(status_code=400, detail="상품 이미지 URL은 필수입니다(텍스트만 글 금지).")
+    fields = _blog_fields_from_form(
+        pump_slug=pump_slug, title=title, body_html=content, excerpt=excerpt,
+        product_image_url=product_image_url, product_title=product_title,
+        product_deeplink=product_deeplink, youtube_url=youtube_url, status=status,
+    )
+    for k, v in fields.items():
+        setattr(post, k, v)
+    db.commit()
+    return RedirectResponse(url=f"/admin/blog/{post.id}/edit", status_code=303)
+
+
+@router.post("/admin/blog/{post_id}/toggle")
+def admin_blog_toggle(
+    post_id: int, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> Response:
+    """발행/비공개 토글(어드민 목록 액션)."""
+    post = db.get(BlogPost, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="블로그 글을 찾을 수 없습니다.")
+    post.status = "draft" if post.status == "published" else "published"
+    db.commit()
+    return RedirectResponse(url="/admin/blog", status_code=303)
+
+
+@router.post("/admin/blog/{post_id}/ig")
+async def admin_blog_publish_ig(
+    post_id: int, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> Response:
+    """대표 상품이미지 1장 + 캡션 → 채널 IG 발행(어드민 목록 액션)."""
+    from datetime import datetime as _dt
+
+    from app.admin.ops.services import blog_service as _bs
+
+    post = db.get(BlogPost, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="블로그 글을 찾을 수 없습니다.")
+    if not (post.product_image_url or "").strip():
+        raise HTTPException(status_code=400, detail="상품 이미지가 없어 IG 발행 불가.")
+    channel_id = _bs.channel_id_for_pump_slug(post.pump_slug)
+    if not channel_id:
+        raise HTTPException(status_code=400, detail=f"pump_slug '{post.pump_slug}' 대응 채널 없음.")
+    pump = db.scalar(select(Pump).where(Pump.name_slug == post.pump_slug))
+    caption = _bs.build_ig_caption(
+        title=post.title, excerpt=post.excerpt, deeplink=post.product_deeplink,
+        pump_display=(pump.display_name if pump else post.pump_slug),
+    )
+    try:
+        res = await _bs.publish_image_to_ig(
+            channel_id=channel_id, image_url=post.product_image_url, caption=caption
+        )
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    post.ig_media_id = str(res.get("media_id") or "")
+    post.ig_published_at = _dt.utcnow()
+    post.status = "published"
+    db.commit()
+    return RedirectResponse(url="/admin/blog", status_code=303)
+
+
+# ===== 펌프 몰 관리 (소개·테마 에디터) =====
+
+@router.get("/admin/pumps", response_class=HTMLResponse)
+def admin_pumps(
+    request: Request, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> HTMLResponse:
+    pumps = db.scalars(select(Pump).order_by(Pump.display_name)).all()
+    blog_rows = db.execute(
+        select(BlogPost.pump_slug, func.count(BlogPost.id)).group_by(BlogPost.pump_slug)
+    ).all()
+    blog_counts = {slug: int(cnt) for slug, cnt in blog_rows}
+    rows = [{"pump": p, "blog_count": blog_counts.get(p.name_slug, 0)} for p in pumps]
+    return templates.TemplateResponse(request, "pumps.html", {"pump_rows": rows})
+
+
+@router.get("/admin/pumps/{name_slug}/edit", response_class=HTMLResponse)
+def admin_pump_edit_get(
+    request: Request, name_slug: str, _: None = Depends(require_admin), db: Session = Depends(get_db)
+) -> HTMLResponse:
+    pump = db.scalar(select(Pump).where(Pump.name_slug == name_slug))
+    if pump is None:
+        raise HTTPException(status_code=404, detail="펌프를 찾을 수 없습니다.")
+
+    def _pretty_json(raw):
+        if not raw or not str(raw).strip():
+            return ""
+        try:
+            return json.dumps(json.loads(raw), ensure_ascii=False, indent=2)
+        except json.JSONDecodeError:
+            return str(raw)
+
+    return templates.TemplateResponse(
+        request, "pump_edit.html",
+        {"pump": pump, "mall_theme_json_text": _pretty_json(pump.mall_theme_json)},
+    )
+
+
+@router.post("/admin/pumps/{name_slug}/edit")
+def admin_pump_edit_post(
+    name_slug: str,
+    _: None = Depends(require_admin),
+    db: Session = Depends(get_db),
+    display_name: str = Form(...),
+    profile_image: str = Form(""),
+    bio: str = Form(""),
+    youtube_url: str = Form(""),
+    instagram_url: str = Form(""),
+    tiktok_url: str = Form(""),
+    cover_image: str = Form(""),
+    mall_theme_json: str = Form(""),
+) -> RedirectResponse:
+    pump = db.scalar(select(Pump).where(Pump.name_slug == name_slug))
+    if pump is None:
+        raise HTTPException(status_code=404, detail="펌프를 찾을 수 없습니다.")
+    theme_parsed, theme_err = validate_mall_theme_json(mall_theme_json)
+    if theme_err:
+        raise HTTPException(status_code=400, detail=theme_err)
+    pump.display_name = display_name.strip()
+    pump.profile_image = (profile_image or "").strip()
+    pump.bio = (bio or "").strip() or None
+    pump.youtube_url = (youtube_url or "").strip()
+    pump.instagram_url = (instagram_url or "").strip()
+    pump.tiktok_url = (tiktok_url or "").strip()
+    pump.cover_image = (cover_image or "").strip()
+    pump.mall_theme_json = json.dumps(theme_parsed, ensure_ascii=False) if theme_parsed else None
+    db.commit()
+    return RedirectResponse(url="/admin/pumps", status_code=303)

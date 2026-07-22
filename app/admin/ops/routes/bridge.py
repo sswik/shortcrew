@@ -23,9 +23,8 @@ from sqlalchemy.orm import Session
 from app.admin.deps import get_db
 from app.admin.ops.channels import get_channels
 from app.admin.ops.routes.instagram_publish import require_ops_token
-from app.admin.ops.services import coupang, gemini_curator
-from app.admin.ops.services.gemini_review_draft import generate_review_draft
-from models import DmAutomation, Influencer, Review
+from app.admin.ops.services import blog_service, coupang, gemini_curator
+from models import BlogPost, DmAutomation, Pump
 
 
 def _dm_message_template(product_title: str, deeplink: str, persona: str = "") -> str:
@@ -65,7 +64,7 @@ def _find_channel(channel_id: str) -> dict | None:
 
 
 class CurateBody(BaseModel):
-    channel_id: str = "105"
+    channel_id: str = "05"
     topics: list[str] = []          # 영상 주제(씨앗). 비우면 후보풀만 미리보기.
     search_keywords: list[str] = []  # 후보풀 검색어. 비우면 채널 trend_keywords 사용.
     persona: str = ""               # Gemini 선정 페르소나. 비우면 채널명 기반.
@@ -147,10 +146,10 @@ async def curate_products(
         raise HTTPException(status_code=503, detail="COUPANG_ACCESS_KEY/SECRET_KEY 미설정")
     gem_key = _gemini_key()
 
-    slug = (ch.get("mall_influencer_slug") or "").strip()
+    slug = (ch.get("mall_pump_slug") or "").strip()
     if not slug:
-        raise HTTPException(status_code=400, detail=f"channel {body.channel_id} has no mall_influencer_slug")
-    persona = body.persona.strip() or f"{ch.get('name') or slug} 보안 상품 큐레이터"
+        raise HTTPException(status_code=400, detail=f"channel {body.channel_id} has no mall_pump_slug")
+    persona = body.persona.strip() or f"{ch.get('name') or slug} 상품 큐레이터"
 
     keywords = [k.strip() for k in (body.search_keywords or ch.get("trend_keywords") or []) if k.strip()]
     keywords = keywords[:_MAX_KEYWORDS]
@@ -240,7 +239,7 @@ async def curate_products(
     want_dm = body.auto_dm
     inf_display = slug
     if want_blog or want_dm:
-        inf = db.scalar(select(Influencer).where(Influencer.name_slug == slug))
+        inf = db.scalar(select(Pump).where(Pump.name_slug == slug))
         inf_display = inf.display_name if inf else slug
 
     sheet_rows: list[dict] = []
@@ -265,36 +264,28 @@ async def curate_products(
         })
         pk["sheet"] = "ok"
 
-        # 블로그(Review) → DB. 시트상품을 sheet_product_* 로 1:1 연결(DB Product 미생성).
+        # 블로그 → DB(blog_posts). 상품이미지 필수(없으면 스킵). 즉시 published(몰 블로그 탭 노출).
         if want_blog:
             try:
                 price = float(p.get("price") or 0)
             except (TypeError, ValueError):
                 price = 0.0
             try:
-                draft = await generate_review_draft(
-                    gem_key,
-                    influencer_display=inf_display,
-                    influencer_slug=slug,
+                fields = await blog_service.generate_blog_fields(
+                    pump_slug=slug,
+                    pump_display=inf_display,
                     product_title=str(p.get("productName") or ""),
                     product_price=price,
                     product_url=deep or clean,
-                    image_url=str(p.get("imageUrl") or ""),
-                    extra_instruction=(
-                        f"이 글은 '{pk['topic']}' 주제의 쇼츠와 연결됩니다. "
-                        "해당 주제 맥락(보안 상황)을 도입부에 자연스럽게 녹이세요."
-                    ),
+                    product_image_url=str(p.get("imageUrl") or ""),
+                    topic=pk["topic"],
                 )
-                rev = Review(
-                    influencer_slug=slug,
-                    title=(draft.get("title") or str(p.get("productName") or ""))[:255],
-                    content=draft.get("html") or "",
-                    sheet_product_title=str(p.get("productName") or "")[:255],
-                    sheet_product_deeplink=(deep or clean)[:500],
-                )
-                db.add(rev)
+                fields["status"] = "published"
+                db.add(BlogPost(**fields))
                 blogs_created += 1
                 pk["blog"] = "ok"
+            except ValueError as e:  # 상품이미지 없음 등 → 블로그만 스킵(시트 적재는 유지)
+                pk["blog"] = f"skip: {str(e)[:60]}"
             except Exception as e:  # 블로그 실패해도 시트 적재는 유지
                 pk["blog"] = f"error: {str(e)[:80]}"
 

@@ -6,8 +6,8 @@ from app.admin.ops.channels import get_channels
 
 
 def _mall_influencer_aliases(channel: dict) -> set[str]:
-    """`MALL_INFLUENCER_SLUG` 에 쉼표·세미콜론으로 여러 슬러그를 넣은 경우(예: soccer-jimin,jimin)."""
-    raw = (channel.get("mall_influencer_slug") or "").strip()
+    """`MALL_PUMP_SLUG` 에 쉼표·세미콜론으로 여러 슬러그를 넣은 경우(예: soccer-jimin,jimin)."""
+    raw = (channel.get("mall_pump_slug") or "").strip()
     if not raw:
         return set()
     parts: list[str] = []
@@ -27,7 +27,7 @@ def get_mall_channel_for_influencer(
     influencer_name_slug: str,
     influencer_shop_path_slug: str | None = None,
 ) -> dict | None:
-    """`mall_influencer_slug`(또는 쉼표 구분 별칭)이 `name_slug`·`shop_path_slug` 와 맞으면 해당 채널 dict."""
+    """`mall_pump_slug`(또는 쉼표 구분 별칭)이 `name_slug`·`shop_path_slug` 와 맞으면 해당 채널 dict."""
     name_s = (influencer_name_slug or "").strip()
     path_s = (influencer_shop_path_slug or "").strip()
     if not name_s and not path_s:

@@ -76,11 +76,23 @@
                     <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">리뷰 관리</span>
                 </a>
 
+                <a href="/admin/blog" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/blog') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">article</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">블로그 관리</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">블로그 관리</span>
+                </a>
+
                 <p class="sidebar-text mb-2 mt-5 px-3 text-[0.65rem] font-bold uppercase tracking-wider text-white/55 lg:group-data-[collapsed=true]/sidebar:sr-only">데이터</p>
                 <a href="/admin/influencers" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/influencers') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
                     <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">groups</span>
                     <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">인플루언서</span>
                     <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">인플루언서</span>
+                </a>
+
+                <a href="/admin/pumps" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/pumps') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
+                    <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">storefront</span>
+                    <span class="sidebar-text truncate lg:group-data-[collapsed=true]/sidebar:sr-only">펌프 몰</span>
+                    <span class="pointer-events-none absolute left-full top-1/2 z-[100] ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white shadow-lg lg:group-data-[collapsed=true]/sidebar:group-hover/nav:block">펌프 몰</span>
                 </a>
                 <a href="/admin/sheets" class="group/nav relative mb-0.5 flex items-center justify-start rounded-lg px-3 py-2 text-sm font-semibold text-white/90 transition hover:bg-white/10 lg:group-data-[collapsed=true]/sidebar:justify-center lg:group-data-[collapsed=true]/sidebar:px-2 {% if request.url.path.startswith('/admin/sheets') %}bg-primary-500/25 ring-1 ring-primary-300/40{% endif %}">
                     <span class="material-icons mr-3 shrink-0 text-xl text-primary-50 lg:group-data-[collapsed=true]/sidebar:mr-0">table_chart</span>

@@ -1,40 +1,35 @@
 /**
  * 공개 몰: 시트 웹앱 JSON + 쿠팡 이미지 워커.
- * 시트 B열(또는 JSON `category`) 기준 카테고리·상품명 검색 필터·페이지네이션(20개/페이지).
+ * 시트 B열(또는 JSON `category`) 기준 카테고리 필터·페이지네이션(모바일 8=2×4, 데스크톱 10=5×2).
  */
 (function () {
     var allProducts = [];
     var currentPage = 1;
-    var PRODUCTS_CACHE_NS = "products";
-    var PRODUCTS_CACHE_TTL_MS = 120 * 1000;
-    var DEFAULT_PRODUCTS_PER_PAGE = 20;
+    var currentKeyword = "";
+    /**
+     * 삼성 인터넷 등: 주소창·visualViewport 로 window resize 가 매우 잦고, 너비가 720 근처에서 흔들리면
+     * getPageSize 8↔10 이 반복되어 paint → img 재생성 → 로드 끊김·onerror 가 반복될 수 있음.
+     * matchMedia(...).change 는 “모바일/데스크톱” 구간을 넘을 때만 발생(높이만 변할 때는 미발생).
+     */
+    var lastLayoutPageSize = -1;
 
     function getPageSize() {
-        var cfg = readConfig();
-        var n = parseInt(cfg && cfg.productsPerPage, 10);
-        return n > 0 ? n : DEFAULT_PRODUCTS_PER_PAGE;
+        if (typeof window !== "undefined" && window.matchMedia) {
+            /* docs/05: 모바일 5개/페이지(2열 그리드와 맞춤) */
+            if (window.matchMedia("(max-width: 720px)").matches) return 5;
+        }
+        return 10;
     }
     /** "" 이면 전체 */
     var activeCategory = "";
-    var searchQuery = "";
-    var searchDebounceTimer = null;
     var ctx = {
         root: null,
         pager: null,
         categoryBar: null,
         workerBase: "",
-        influencerSlug: "",
-        mallApiChannel: "",
+        pumpSlug: "",
         partnersLptag: "",
     };
-
-    function debugCache(eventName, extra) {
-        try {
-            if (typeof console !== "undefined" && console.debug) {
-                console.debug("[shop-products-cache]", eventName, extra || {});
-            }
-        } catch (e) {}
-    }
 
     function readConfig() {
         var el = document.getElementById("shop-page-config");
@@ -44,6 +39,18 @@
         } catch (e) {
             return {};
         }
+    }
+
+    /** main.py `shop_page_config.theme` → CSS 변수(모바일 셸·카테고리 톤). */
+    function applyThemeFromConfig(cfg) {
+        var t = cfg && cfg.theme ? cfg.theme : {};
+        var root = document.documentElement;
+        if (t.background) root.style.setProperty("--mall-theme-bg", t.background);
+        if (t.card) root.style.setProperty("--mall-theme-card", t.card);
+        if (t.accent) root.style.setProperty("--mall-theme-accent", t.accent);
+        if (t.textMain) root.style.setProperty("--mall-theme-text", t.textMain);
+        if (t.textSub) root.style.setProperty("--mall-theme-text-sub", t.textSub);
+        if (t.border) root.style.setProperty("--mall-theme-border", t.border);
     }
 
     function buildProductsApiUrl(apiUrl, channel) {
@@ -59,78 +66,6 @@
         if (data && Array.isArray(data.items)) return data.items;
         if (data && Array.isArray(data.products)) return data.products;
         return [];
-    }
-
-    function canUseSessionStorage() {
-        try {
-            if (typeof window === "undefined" || !window.sessionStorage) return false;
-            var k = "__shop_products_cache_test__";
-            window.sessionStorage.setItem(k, "1");
-            window.sessionStorage.removeItem(k);
-            return true;
-        } catch (e) {
-            return false;
-        }
-    }
-
-    function productsCacheKey(fetchUrl) {
-        var slug = String(ctx.influencerSlug || "").trim();
-        var channel = String(ctx.mallApiChannel || "").trim();
-        if (slug && channel) return PRODUCTS_CACHE_NS + ":" + slug + ":" + channel;
-        return PRODUCTS_CACHE_NS + ":url:" + String(fetchUrl || "").trim();
-    }
-
-    function readProductsSessionCache(key) {
-        if (!canUseSessionStorage() || !key) return { state: "unavailable", items: [] };
-        var raw = "";
-        try {
-            raw = String(window.sessionStorage.getItem(key) || "");
-        } catch (e1) {
-            return { state: "unavailable", items: [] };
-        }
-        if (!raw) return { state: "miss", items: [] };
-        try {
-            var parsed = JSON.parse(raw);
-            var ts = Number(parsed && parsed.ts ? parsed.ts : 0);
-            var items = parsed && Array.isArray(parsed.items) ? parsed.items : null;
-            if (!items || !ts) return { state: "invalid", items: [] };
-            if (Date.now() - ts > PRODUCTS_CACHE_TTL_MS) return { state: "stale", items: items };
-            return { state: "hit", items: items };
-        } catch (e2) {
-            return { state: "invalid", items: [] };
-        }
-    }
-
-    function writeProductsSessionCache(key, items) {
-        if (!canUseSessionStorage() || !key || !Array.isArray(items) || !items.length) return;
-        try {
-            window.sessionStorage.setItem(
-                key,
-                JSON.stringify({
-                    ts: Date.now(),
-                    items: items,
-                }),
-            );
-        } catch (e) {}
-    }
-
-    function productsFingerprint(list) {
-        if (!Array.isArray(list) || !list.length) return "0";
-        var max = Math.min(list.length, 12);
-        var sig = [];
-        for (var i = 0; i < max; i += 1) {
-            var p = list[i] || {};
-            sig.push(
-                [
-                    pickName(p),
-                    pickPrice(p),
-                    pickImage(p),
-                    pickDeepLink(p),
-                    pickCategory(p),
-                ].join("|"),
-            );
-        }
-        return String(list.length) + ":" + sig.join("||");
     }
 
     function pickName(p) {
@@ -161,7 +96,7 @@
 
         var w = String(workerBase || "").trim();
         if (!w) {
-            w = "https://image.shortcrew.co.kr";
+            w = "https://image.short-mall.com";
         }
         w = w.replace(/\/?$/, "");
         return w + "/?url=" + encodeURIComponent(safeUrl);
@@ -185,14 +120,10 @@
 
     function productsFiltered() {
         var list = productsInCategory();
-        var q = String(searchQuery || "")
-            .trim()
-            .toLowerCase();
-        if (!q) return list;
+        var kw = String(currentKeyword || "").trim().toLowerCase();
+        if (!kw) return list;
         return list.filter(function (p) {
-            var name = pickName(p).toLowerCase();
-            var cat = pickCategory(p).toLowerCase();
-            return name.indexOf(q) !== -1 || cat.indexOf(q) !== -1;
+            return pickName(p).toLowerCase().indexOf(kw) !== -1;
         });
     }
 
@@ -216,6 +147,11 @@
         if (!bar) return;
         bar.innerHTML = "";
         bar.hidden = true;
+    }
+
+    function showSearchBar() {
+        var sr = document.getElementById("shop-product-search");
+        if (sr) sr.hidden = false;
     }
 
     function syncCategoryPillsActive() {
@@ -265,6 +201,18 @@
         });
         bar.appendChild(inner);
         bar.hidden = false;
+        showSearchBar();
+    }
+
+    function bindSearchInput() {
+        var input = document.getElementById("shop-product-search-input");
+        if (!input || input.dataset.bound === "1") return;
+        input.dataset.bound = "1";
+        input.addEventListener("input", function () {
+            currentKeyword = String(input.value || "").trim();
+            currentPage = 1;
+            paint();
+        });
     }
 
     /** 쿠팡 도메인이면 URL에 lptag 쿼리를 붙인다(이미 있으면 덮어쓰지 않음). */
@@ -308,25 +256,10 @@
         }
     }
 
-    var SHOP_EMPTY_MSG = "등록된 상품이 없습니다";
-
-    function logProductsLoadError(err, fetchUrl, cfg) {
-        try {
-            if (typeof console !== "undefined" && console.error) {
-                console.error("[shop-products] load failed", {
-                    message: err && err.message ? String(err.message) : String(err),
-                    fetchUrl: fetchUrl,
-                    apiUrl: cfg && cfg.mallProductsApiUrl,
-                    channel: cfg && cfg.mallApiChannel,
-                });
-            }
-        } catch (e) {}
-    }
-
-    function renderShopEmpty(root) {
+    function renderError(root, msg) {
         hideCategoryBar();
-        root.innerHTML =
-            '<p class="shop-products-empty muted">' + SHOP_EMPTY_MSG + "</p>";
+        root.classList.add("is-empty");
+        root.innerHTML = '<p class="muted shop-empty-message">' + msg + "</p>";
         root.setAttribute("aria-busy", "false");
         var pg = ctx.pager;
         if (pg) {
@@ -335,12 +268,12 @@
         }
     }
 
-    function attachBuyAttributes(el, link, influencerSlug, coupangId, productName) {
+    function attachBuyAttributes(el, link, pumpSlug, coupangId, productName) {
         el.href = link;
         el.target = "_blank";
         el.rel = "noopener";
         el.setAttribute("data-track-click", "");
-        el.setAttribute("data-influencer", influencerSlug);
+        el.setAttribute("data-pump", pumpSlug);
         el.setAttribute("data-product-id", coupangId || "0");
         if (link) el.setAttribute("data-deep-link", String(link));
         if (productName) el.setAttribute("data-product-name", String(productName));
@@ -382,14 +315,15 @@
         return frame;
     }
 
-    function renderCards(root, items, workerBase, influencerSlug, partnersLptag) {
+    function renderCards(root, items, workerBase, pumpSlug, partnersLptag) {
         root.innerHTML = "";
         if (!items.length) {
-            root.innerHTML =
-                '<p class="shop-products-empty muted">' + SHOP_EMPTY_MSG + "</p>";
+            root.classList.add("is-empty");
+            root.innerHTML = '<p class="muted shop-empty-message">표시할 상품이 없습니다.</p>';
             root.setAttribute("aria-busy", "false");
             return;
         }
+        root.classList.remove("is-empty");
         var frag = document.createDocumentFragment();
         items.forEach(function (p) {
             var name = pickName(p);
@@ -397,46 +331,58 @@
             var imgSrc = pickImage(p);
             var rawLink = pickDeepLink(p);
             var link = withCoupangPartnerQuery(rawLink, partnersLptag);
+            var category = pickCategory(p);
             if (!name && !link) return;
 
-            var card = document.createElement("article");
-            card.className = "card card--product";
-
             var coupangId = link ? extractCoupangProductId(link) : "";
-
-            if (link) {
-                var media = document.createElement("a");
-                media.className = "product-card__media";
-                attachBuyAttributes(media, link, influencerSlug, coupangId, name);
-                media.appendChild(buildThumbFrame(imgSrc, workerBase, name));
-                card.appendChild(media);
+            var hasValidLink = !!link;
+            var card = document.createElement(hasValidLink ? "a" : "div");
+            card.className = "card card--product";
+            if (hasValidLink) {
+                attachBuyAttributes(card, link, pumpSlug, coupangId, name);
+                card.addEventListener("click", function () {
+                    window.dispatchEvent(
+                        new CustomEvent("mall:product-click", {
+                            detail: {
+                                deepLink: link,
+                                name: name,
+                                price: priceRaw,
+                                category: category,
+                            },
+                        }),
+                    );
+                });
             } else {
-                var wrap = document.createElement("div");
-                wrap.className = "product-card__media";
-                wrap.appendChild(buildThumbFrame(imgSrc, workerBase, name));
-                card.appendChild(wrap);
+                card.className += " is-disabled";
             }
 
-            var h = document.createElement("h3");
-            h.textContent = name || "(이름 없음)";
-            card.appendChild(h);
+            var media = document.createElement("div");
+            media.className = "product-card__media";
+            media.appendChild(buildThumbFrame(imgSrc, workerBase, name));
+            card.appendChild(media);
 
-            var pr = document.createElement("p");
-            pr.className = "price";
-            pr.textContent = formatPriceKo(priceRaw);
-            card.appendChild(pr);
+            // sample/malls/05-homecam-short-mall/js/components/product-card.js 패턴과 동일:
+            // 텍스트 영역을 innerHTML로 한 번에 구성(상품명 → 가격 → 카테고리).
+            var content = document.createElement("div");
+            content.className = "product-card__content";
+            var metaHtml =
+                '<p class="product-card__meta">' +
+                '<span class="price">' +
+                formatPriceKo(priceRaw) +
+                "</span>" +
+                (category
+                    ? '<span class="product-card__meta-sep" aria-hidden="true"> | </span><span class="product-card__category">' +
+                      String(category) +
+                      "</span>"
+                    : "") +
+                "</p>";
+            content.innerHTML =
+                '<h3>' +
+                (name || "(이름 없음)") +
+                "</h3>" +
+                metaHtml;
 
-            var a = document.createElement("a");
-            a.className = "btn btn-primary";
-            a.textContent = "바로 구매하기";
-            if (link) {
-                attachBuyAttributes(a, link, influencerSlug, coupangId, name);
-            } else {
-                a.href = "#";
-                a.className += " disabled";
-                a.setAttribute("aria-disabled", "true");
-            }
-            card.appendChild(a);
+            card.appendChild(content);
             frag.appendChild(card);
         });
         root.appendChild(frag);
@@ -518,11 +464,11 @@
         var list = productsFiltered();
 
         if (list.length === 0 && allProducts.length > 0) {
-            var emptyMsg = searchQuery.trim()
-                ? "검색 결과가 없습니다."
+            var msg = String(currentKeyword || "").trim()
+                ? "검색어에 맞는 상품이 없습니다."
                 : "이 카테고리에 표시할 상품이 없습니다.";
-            ctx.root.innerHTML =
-                '<p class="shop-products-empty muted">' + emptyMsg + "</p>";
+            ctx.root.classList.add("is-empty");
+            ctx.root.innerHTML = '<p class="muted shop-empty-message">' + msg + "</p>";
             ctx.root.setAttribute("aria-busy", "false");
             syncCategoryPillsActive();
             if (ctx.pager) {
@@ -533,36 +479,67 @@
         }
 
         var items = sliceForPageFrom(list);
+        ctx.root.classList.remove("is-empty");
         renderCards(
             ctx.root,
             items,
             ctx.workerBase,
-            ctx.influencerSlug,
+            ctx.pumpSlug,
             ctx.partnersLptag,
         );
         renderPagerFor(list);
         syncCategoryPillsActive();
     }
 
-    function applyProductsAndRender(list, loading) {
-        if (loading) loading.remove();
-        allProducts = Array.isArray(list) ? list : [];
-        currentPage = 1;
-        activeCategory = "";
-        searchQuery = "";
-        var searchEl = document.getElementById("shop-product-search");
-        if (searchEl) searchEl.value = "";
-        if (!allProducts.length) {
-            renderShopEmpty(ctx.root);
-            return false;
-        }
-        initCategoryBar();
-        paint();
-        return true;
-    }
+    function load() {
+        var cfg = readConfig();
+        applyThemeFromConfig(cfg);
+        ctx.root = document.getElementById("shop-product-root");
+        ctx.pager = document.getElementById("shop-product-pager");
+        ctx.categoryBar = document.getElementById("shop-product-categories");
+        var loading = document.getElementById("shop-loading");
+        if (!ctx.root) return;
+        showSearchBar();
+        bindSearchInput();
 
-    function fetchProductsJson(fetchUrl) {
-        return fetch(fetchUrl, { credentials: "omit" })
+        var fetchUrl = String(cfg.mallProductsFetchUrl || "").trim();
+        var apiUrl = String(cfg.mallProductsApiUrl || "").trim();
+        var channel = String(cfg.mallApiChannel || "").trim();
+        ctx.workerBase = String(cfg.coupangImageWorkerBase || "").trim();
+        ctx.pumpSlug = String(cfg.pumpSlug || "").trim();
+        ctx.partnersLptag = String(cfg.coupangPartnersLptag || "").trim();
+
+        if (!fetchUrl) {
+            if (!apiUrl) {
+                if (loading) loading.remove();
+                renderError(
+                    ctx.root,
+                    "이 펌프 몰에 연결된 시트 상품 API URL이 없습니다. " +
+                        "`.env`에 CHANNEL_…_MALL_PRODUCTS_API_URL 또는 PRODUCT_DELIVERY_WEBAPP_URL 을 설정하세요.",
+                );
+                return;
+            }
+            if (!channel) {
+                if (loading) loading.remove();
+                renderError(ctx.root, "채널 ID가 비어 있어 상품 API 주소를 만들 수 없습니다.");
+                return;
+            }
+            fetchUrl = buildProductsApiUrl(apiUrl, channel);
+        }
+
+        fetchUrl = String(fetchUrl || "").trim();
+        if (fetchUrl) {
+            if (/^\/\//.test(fetchUrl)) {
+                fetchUrl =
+                    (window.location && window.location.protocol
+                        ? window.location.protocol
+                        : "https:") + fetchUrl;
+            } else if (fetchUrl.charAt(0) === "/") {
+                fetchUrl = new URL(fetchUrl, window.location.origin).href;
+            }
+        }
+
+        fetch(fetchUrl, { credentials: "omit" })
             .then(function (res) {
                 return res.text().then(function (text) {
                     if (!res.ok) {
@@ -588,122 +565,79 @@
                 });
             })
             .then(function (data) {
-                return normalizeList(data);
-            });
-    }
-
-    function load() {
-        var cfg = readConfig();
-        ctx.root = document.getElementById("shop-product-root");
-        ctx.pager = document.getElementById("shop-product-pager");
-        ctx.categoryBar = document.getElementById("shop-product-categories");
-        var loading = document.getElementById("shop-loading");
-        if (!ctx.root) return;
-
-        var fetchUrl = String(cfg.mallProductsFetchUrl || "").trim();
-        var apiUrl = String(cfg.mallProductsApiUrl || "").trim();
-        var channel = String(cfg.mallApiChannel || "").trim();
-        ctx.workerBase = String(cfg.coupangImageWorkerBase || "").trim();
-        ctx.influencerSlug = String(cfg.influencerSlug || "").trim();
-        ctx.mallApiChannel = String(cfg.mallApiChannel || "").trim();
-        ctx.partnersLptag = String(cfg.coupangPartnersLptag || "").trim();
-
-        if (!fetchUrl) {
-            if (!apiUrl || !channel) {
                 if (loading) loading.remove();
-                logProductsLoadError(
-                    new Error("mall products API not configured"),
-                    "",
-                    cfg,
-                );
-                renderShopEmpty(ctx.root);
-                return;
-            }
-            fetchUrl = buildProductsApiUrl(apiUrl, channel);
-        }
-
-        fetchUrl = String(fetchUrl || "").trim();
-        if (fetchUrl) {
-            if (/^https?:\/\//i.test(fetchUrl)) {
-                /* absolute URL — use as-is */
-            } else if (/^\/\//.test(fetchUrl)) {
-                fetchUrl =
-                    (window.location && window.location.protocol
-                        ? window.location.protocol
-                        : "https:") + fetchUrl;
-            } else if (fetchUrl.charAt(0) === "/") {
-                fetchUrl = new URL(fetchUrl, window.location.origin).href;
-            }
-        }
-
-        var cacheKey = productsCacheKey(fetchUrl);
-        var cache = readProductsSessionCache(cacheKey);
-        if (cache.state === "hit") {
-            debugCache("cache_hit", { key: cacheKey, size: cache.items.length });
-            applyProductsAndRender(cache.items, loading);
-            var prevSig = productsFingerprint(cache.items);
-            fetchProductsJson(fetchUrl)
-                .then(function (networkList) {
-                    if (!Array.isArray(networkList) || !networkList.length) return;
-                    writeProductsSessionCache(cacheKey, networkList);
-                    var nextSig = productsFingerprint(networkList);
-                    if (nextSig !== prevSig) {
-                        debugCache("revalidate_ok", { key: cacheKey, changed: true });
-                        applyProductsAndRender(networkList, null);
-                    } else {
-                        debugCache("revalidate_ok", { key: cacheKey, changed: false });
-                    }
-                })
-                .catch(function (err1) {
-                    debugCache("revalidate_fail", {
-                        key: cacheKey,
-                        message: err1 && err1.message ? String(err1.message) : String(err1),
-                    });
-                });
-            return;
-        }
-
-        if (cache.state === "stale") {
-            debugCache("cache_stale", { key: cacheKey, size: cache.items.length });
-        } else if (cache.state === "miss") {
-            debugCache("cache_miss", { key: cacheKey });
-        } else if (cache.state === "invalid") {
-            debugCache("cache_invalid", { key: cacheKey });
-        }
-
-        fetchProductsJson(fetchUrl)
-            .then(function (list) {
-                var ok = applyProductsAndRender(list, loading);
-                if (ok) writeProductsSessionCache(cacheKey, list);
+                var list = normalizeList(data);
+                allProducts = list;
+                currentPage = 1;
+                activeCategory = "";
+                currentKeyword = "";
+                var si = document.getElementById("shop-product-search-input");
+                if (si) si.value = "";
+                if (!allProducts.length) {
+                    initCategoryBar(); // 최소 "전체" pill은 보여서 상품 탭 UI가 비정상처럼 보이지 않게 유지
+                    renderError(
+                        ctx.root,
+                        "표시할 상품이 없습니다. 시트에 행이 있는지·웹앱 응답 형식을 확인하세요.",
+                    );
+                    return;
+                }
+                initCategoryBar();
+                bindSearchInput();
+                lastLayoutPageSize = getPageSize();
+                paint();
             })
             .catch(function (err) {
                 if (loading) loading.remove();
-                logProductsLoadError(err, fetchUrl, cfg);
-                renderShopEmpty(ctx.root);
+                var m = err && err.message ? String(err.message) : String(err);
+                renderError(
+                    ctx.root,
+                    "상품을 불러오지 못했습니다. " +
+                        m +
+                        " — 터미널에서 확인: curl -sS " +
+                        JSON.stringify(
+                            (typeof location !== "undefined" && location.origin
+                                ? location.origin
+                                : "") + fetchUrl,
+                        ) +
+                        " — `.env` CHANNEL_*_MALL_PRODUCTS_CHANNEL_PARAM 은 Apps Script가 쓰는 ?channel= 값(샘플 APPS_SCRIPT_CHANNEL)과 맞출 것.",
+                );
             });
     }
 
-    function bindSearchInput() {
-        var el = document.getElementById("shop-product-search");
-        if (!el) return;
-        el.addEventListener("input", function () {
-            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-            searchDebounceTimer = setTimeout(function () {
-                searchDebounceTimer = null;
-                searchQuery = el.value || "";
-                currentPage = 1;
+    function bindLayoutModeListener() {
+        if (typeof window === "undefined" || !window.matchMedia) return;
+        var mq = window.matchMedia("(max-width: 720px)");
+        var debounceTimer = null;
+        function onMediaChange() {
+            if (!ctx.root || !allProducts.length) return;
+            if (debounceTimer) clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function () {
+                debounceTimer = null;
+                var ps = getPageSize();
+                if (ps === lastLayoutPageSize) {
+                    return;
+                }
+                lastLayoutPageSize = ps;
+                var list = productsFiltered();
+                clampPageFor(list);
                 paint();
             }, 200);
-        });
+        }
+        if (mq.addEventListener) {
+            mq.addEventListener("change", onMediaChange);
+        } else if (mq.addListener) {
+            mq.addListener(onMediaChange);
+        }
+        window.addEventListener("orientationchange", onMediaChange);
     }
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", function () {
             load();
-            bindSearchInput();
+            bindLayoutModeListener();
         });
     } else {
         load();
-        bindSearchInput();
+        bindLayoutModeListener();
     }
 })();

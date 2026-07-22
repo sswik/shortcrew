@@ -33,7 +33,7 @@ class ShortsReviewConfig:
 
     channel_id: str
     spreadsheet_id: str
-    mall_influencer_slug: str
+    mall_pump_slug: str
     plan_tab: str
     product_tab: str
     plan_range: str
@@ -74,7 +74,7 @@ def shorts_config_from_channel(channel: dict) -> ShortsReviewConfig | None:
     if not product_tab:
         product_tab = (channel.get("sheet_tab_name") or "상품목록").strip() or "상품목록"
     cid = (channel.get("channel_id") or "").strip()
-    mall = (channel.get("mall_influencer_slug") or "").strip()
+    mall = (channel.get("mall_pump_slug") or "").strip()
     if not cid or not mall:
         return None
 
@@ -88,7 +88,7 @@ def shorts_config_from_channel(channel: dict) -> ShortsReviewConfig | None:
     return ShortsReviewConfig(
         channel_id=cid,
         spreadsheet_id=sid,
-        mall_influencer_slug=mall,
+        mall_pump_slug=mall,
         plan_tab=plan_tab,
         product_tab=product_tab,
         plan_range=plan_range,

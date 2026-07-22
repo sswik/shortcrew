@@ -40,7 +40,7 @@ def _channel_for_influencer_slug(influencer_slug: str) -> dict | None:
     if not want:
         return None
     for ch in get_channels():
-        mall = (ch.get("mall_influencer_slug") or "").strip().lower()
+        mall = (ch.get("mall_pump_slug") or "").strip().lower()
         if mall == want:
             return ch
     return None
