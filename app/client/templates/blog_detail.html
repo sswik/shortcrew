@@ -12,8 +12,15 @@
 <meta property="og:image" content="{{ post.product_image_url | e }}" />
 {% endif %}
 <style>
-    :root { --tap-accent: {{ mall_theme_tap | e }}; }
+    :root { --tap-accent: {{ mall_theme_tap | e }}; --mall-accent: {{ (mall_theme.accent or '#7c3aed') | e }}; }
     .page-body--mall .container { padding: 0; }
+    .blog-topbar { max-width: 680px; margin: 0.9rem auto 0; padding: 0 0.6rem; }
+    .blog-back {
+        display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.5rem 0.9rem;
+        border-radius: 999px; background: rgba(255,255,255,0.12); color: #f8fafc;
+        border: 1px solid rgba(255,255,255,0.22); font-size: 0.85rem; font-weight: 700; text-decoration: none;
+    }
+    .blog-back:hover { background: rgba(255,255,255,0.2); }
     .blog-article { max-width: 680px; margin: 1.2rem auto; padding: 1.25rem 1.25rem 2.5rem; color: #1f2937; background: #ffffff; border-radius: 18px; box-shadow: 0 10px 34px rgba(0,0,0,0.18); }
     @media (max-width: 700px) { .blog-article { margin: 0.6rem; border-radius: 14px; padding: 1.05rem 1.05rem 2.2rem; } }
     /* 채널 헤더: 프사 + 채널명 한 줄 */
@@ -32,10 +39,11 @@
     .blog-article__body p { margin: 0 0 0.9rem; }
     .blog-article__body img { max-width: 100%; border-radius: 12px; }
     .blog-buy {
-        display: block; text-align: center; margin: 1.5rem 0; padding: 0.95rem 1rem;
-        border-radius: 14px; background: var(--tap-accent, #7c3aed); color: #fff; font-weight: 800;
-        text-decoration: none; font-size: 1rem;
+        display: block; text-align: center; margin: 1.5rem 0; padding: 1rem 1rem;
+        border-radius: 14px; background: var(--mall-accent, #7c3aed); color: #fff; font-weight: 800;
+        text-decoration: none; font-size: 1.02rem; box-shadow: 0 6px 18px rgba(0,0,0,0.22);
     }
+    .blog-buy:hover { filter: brightness(1.06); }
     .blog-disclosure { font-size: 0.72rem; color: #94a3b8; text-align: center; margin-top: 1.5rem; line-height: 1.5; }
 </style>
 {% endblock %}
@@ -44,6 +52,9 @@
 {% block main_extra_class %} page-body--mall{% endblock %}
 
 {% block content %}
+<div class="blog-topbar">
+    <a class="blog-back" href="/{{ pump.name_slug }}/blog">← 뒤로</a>
+</div>
 <article class="blog-article">
     <a class="blog-channel" href="/{{ pump.name_slug }}">
         {% if pump.profile_image %}
