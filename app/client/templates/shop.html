@@ -101,6 +101,13 @@
         color: #16a34a !important;
     }
 
+    /* 몰 상단: 프사 + 채널명 한 줄 */
+    .shop-mobile-top { display: flex; align-items: center; gap: 0.7rem; padding: 0.9rem 0.7rem 0.35rem; }
+    .shop-mobile-top__avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; background: #262626; flex-shrink: 0; }
+    .shop-mobile-top__text { display: flex; flex-direction: column; min-width: 0; }
+    .shop-mobile-top__title { margin: 0; font-size: 1.28rem; font-weight: 800; line-height: 1.2; color: var(--mall-theme-text, #f8fafc); }
+    .shop-mobile-top__sub { margin: 0.1rem 0 0; font-size: 0.8rem; color: var(--mall-theme-text-sub, #94a3b8); }
+
     /* 상품 검색바 */
     .shop-product-search { padding: 0.7rem 0.65rem 0.4rem; }
     .shop-product-search__inner { position: relative; display: flex; align-items: center; }
