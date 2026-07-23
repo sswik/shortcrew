@@ -13,6 +13,8 @@
 /admin/api/ops/channels/{channel_id}/settings [POST]
 /admin/api/ops/coupang/search [GET]
 /admin/api/ops/crosspost/reel [POST]
+/admin/api/ops/curation/run-now [POST]
+/admin/api/ops/curation/status [GET]
 /admin/api/ops/dm/channels [GET]
 /admin/api/ops/dm/media [GET]
 /admin/api/ops/dm/rules [GET]

@@ -60,3 +60,11 @@ register_error_handlers(app)
 # 라우터 등록 순서: 어드민 HTML → 공개(catch-all `/{name_slug}` 가 마지막).
 app.include_router(admin_router)
 app.include_router(client_router)
+
+
+@app.on_event("startup")
+async def _startup_curation_scheduler() -> None:
+    """n8n 의존 없이 앱 자체가 매일 1채널 큐레이션(env 로 켜짐)."""
+    from app.admin.ops.services.curation_scheduler import start as _start_curation
+
+    _start_curation()

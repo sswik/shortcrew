@@ -10,6 +10,7 @@ from app.admin.ops.routes import ai as ai_routes
 from app.admin.ops.routes import blog as blog_routes
 from app.admin.ops.routes import bridge as bridge_routes
 from app.admin.ops.routes import crosspost as crosspost_routes
+from app.admin.ops.routes import curation as curation_routes
 from app.admin.ops.routes import channels as channels_routes
 from app.admin.ops.routes import coupang as coupang_routes
 from app.admin.ops.routes import dm as dm_routes
@@ -31,3 +32,4 @@ router.include_router(instagram_publish_routes.router, prefix="/instagram", tags
 router.include_router(bridge_routes.router, prefix="/bridge", tags=["admin-ops"])
 router.include_router(blog_routes.router, prefix="/blog", tags=["admin-ops"])
 router.include_router(crosspost_routes.router, prefix="/crosspost", tags=["admin-ops"])
+router.include_router(curation_routes.router, prefix="/curation", tags=["admin-ops"])
