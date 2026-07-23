@@ -27,9 +27,12 @@ def curation_status(_: None = Depends(require_ops_token)) -> dict:
 class RunNowBody(BaseModel):
     channel_id: str = ""       # 비우면 오늘의 채널(로테이션)
     auto_blog: bool | None = None  # None 이면 env(CURATION_AUTO_BLOG) 따름
+    max_items: int | None = None   # 이번 실행 상품 개수. None 이면 env(증분). 초기시딩=20 등
 
 
 @router.post("/run-now")
 async def curation_run_now(body: RunNowBody, _: None = Depends(require_ops_token)) -> dict:
     """오늘(또는 지정) 채널 큐레이션 즉시 실행. 스케줄과 동일 로직."""
-    return await run_curation_once(body.channel_id or None, auto_blog=body.auto_blog)
+    return await run_curation_once(
+        body.channel_id or None, auto_blog=body.auto_blog, max_items=body.max_items
+    )

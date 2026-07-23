@@ -54,8 +54,13 @@ def todays_channel(channels: list[str] | None = None) -> str | None:
     return chs[doy % len(chs)]
 
 
-async def run_curation_once(channel_id: str | None = None, *, auto_blog: bool | None = None) -> dict:
-    """1채널 큐레이션 실행(내부 직접 호출). channel_id 없으면 오늘의 채널."""
+async def run_curation_once(
+    channel_id: str | None = None, *, auto_blog: bool | None = None, max_items: int | None = None
+) -> dict:
+    """1채널 큐레이션 실행(내부 직접 호출). channel_id 없으면 오늘의 채널.
+
+    max_items: 이번 실행 상품 개수. None 이면 env(CURATION_MAX_ITEMS, 증분 기본). 초기시딩은 20 등 명시.
+    """
     from app.admin.ops.routes.bridge import CurateBody, curate_products
     from models import SessionLocal
 
@@ -64,7 +69,7 @@ async def run_curation_once(channel_id: str | None = None, *, auto_blog: bool | 
         logger.warning("curation_scheduler: 대상 채널 없음")
         return {"skipped": "no channel"}
     ab = _truthy("CURATION_AUTO_BLOG") if auto_blog is None else auto_blog
-    body = CurateBody(channel_id=cid, dry_run=False, auto_blog=ab)
+    body = CurateBody(channel_id=cid, dry_run=False, auto_blog=ab, max_items=max_items)
     with SessionLocal() as db:
         result = await curate_products(body, db=db, _=None)
     logger.info(

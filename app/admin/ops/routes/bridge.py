@@ -39,8 +39,8 @@ def _dm_message_template(product_title: str, deeplink: str, persona: str = "") -
 
 router = APIRouter()
 
-# 쿼터·프롬프트 보호 상한.
-_MAX_KEYWORDS = 8
+# 쿼터·프롬프트 보호 상한. CURATION_MAX_ITEMS 로 채널당 주제(=상품) 개수 조절(기본 10).
+_MAX_KEYWORDS = max(1, int((os.environ.get("CURATION_MAX_ITEMS") or "10").strip() or "10"))
 _MAX_POOL = 40
 
 
@@ -69,6 +69,7 @@ class CurateBody(BaseModel):
     search_keywords: list[str] = []  # 후보풀 검색어. 비우면 채널 trend_keywords 사용.
     persona: str = ""               # Gemini 선정 페르소나. 비우면 채널명 기반.
     search_limit: int = 20          # 키워드당 검색 상한.
+    max_items: int | None = None    # 이번 실행 주제(=상품) 개수. None 이면 env(_MAX_KEYWORDS). 초기시딩=20/증분=3 분리용.
     dry_run: bool = True            # true 면 적재 없이 미리보기.
     auto_blog: bool = False         # true 면 적재된 상품마다 블로그(Review) 자동 생성·발행(dry_run 시 무시).
     auto_dm: bool = False           # true 면 적재된 상품마다 자동DM 규칙 생성(다음 발행 게시물 대상, 상품 딥링크).
@@ -151,8 +152,11 @@ async def curate_products(
         raise HTTPException(status_code=400, detail=f"channel {body.channel_id} has no mall_pump_slug")
     persona = body.persona.strip() or f"{ch.get('name') or slug} 상품 큐레이터"
 
+    # 이번 실행 상품 개수(주제 수). max_items 지정 시 그 값, 아니면 env 기본(_MAX_KEYWORDS).
+    limit = body.max_items if (body.max_items and body.max_items > 0) else _MAX_KEYWORDS
+
     keywords = [k.strip() for k in (body.search_keywords or ch.get("trend_keywords") or []) if k.strip()]
-    keywords = keywords[:_MAX_KEYWORDS]
+    keywords = keywords[:limit]
     if not keywords:
         raise HTTPException(status_code=400, detail="검색 키워드가 없습니다(search_keywords 또는 채널 trend_keywords).")
 
@@ -163,11 +167,11 @@ async def curate_products(
         res = await coupang.search_products(kw, access_key, secret_key, limit=body.search_limit)
         pool.extend(res.products)
         pool_meta.append({"keyword": kw, "found": len(res.products), "stop_reason": res.stop_reason})
-    pool = _dedupe_pool(pool)[:_MAX_POOL]
+    pool = _dedupe_pool(pool)[: max(_MAX_POOL, limit * 3)]
 
     # 주제: 명시값 없으면 채널 분야 키워드(trend_keywords)를 주제로 사용 → 채널만 넘기면 자동 큐레이션(확장 기본).
     topics_in = [t.strip() for t in (body.topics or ch.get("trend_keywords") or []) if t.strip()]
-    topics_in = topics_in[:_MAX_KEYWORDS]
+    topics_in = topics_in[:limit]
 
     # 주제도 채널 키워드도 없을 때만 후보풀 미리보기(선정·적재 없음)
     if not topics_in:
