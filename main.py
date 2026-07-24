@@ -54,7 +54,21 @@ app.add_middleware(AccessDetailLogMiddleware)
 
 run_migrations()
 
-app.mount("/static", StaticFiles(directory=str(_ROOT / "static")), name="static")
+class _NoCacheStatic(StaticFiles):
+    """JS/CSS 는 배포 즉시 반영되도록 `Cache-Control: no-cache`(매번 재검증).
+
+    브라우저·Cloudflare 가 etag 조건부 요청으로 검증 → 안 바뀌면 304(재다운로드 없음),
+    바뀌면 새 파일. `?v=` 쿼리·파일명 해시 없이 캐시 지연을 없앤다. 이미지 등은 기본 유지.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if path.endswith((".js", ".css")):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", _NoCacheStatic(directory=str(_ROOT / "static")), name="static")
 register_error_handlers(app)
 
 # 라우터 등록 순서: 어드민 HTML → 공개(catch-all `/{name_slug}` 가 마지막).
