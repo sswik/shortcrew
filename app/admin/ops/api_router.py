@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from app.admin.ops.routes import ai as ai_routes
 from app.admin.ops.routes import blog as blog_routes
 from app.admin.ops.routes import bridge as bridge_routes
+from app.admin.ops.routes import bridge_scripts as bridge_scripts_routes
 from app.admin.ops.routes import crosspost as crosspost_routes
 from app.admin.ops.routes import curation as curation_routes
 from app.admin.ops.routes import channels as channels_routes
@@ -30,6 +31,7 @@ router.include_router(mall_routes.router, prefix="/mall", tags=["admin-ops"])
 router.include_router(dm_routes.router, prefix="/dm", tags=["admin-ops"])
 router.include_router(instagram_publish_routes.router, prefix="/instagram", tags=["admin-ops"])
 router.include_router(bridge_routes.router, prefix="/bridge", tags=["admin-ops"])
+router.include_router(bridge_scripts_routes.router, prefix="/bridge", tags=["admin-ops"])
 router.include_router(blog_routes.router, prefix="/blog", tags=["admin-ops"])
 router.include_router(crosspost_routes.router, prefix="/crosspost", tags=["admin-ops"])
 router.include_router(curation_routes.router, prefix="/curation", tags=["admin-ops"])
