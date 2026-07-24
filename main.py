@@ -68,3 +68,11 @@ async def _startup_curation_scheduler() -> None:
     from app.admin.ops.services.curation_scheduler import start as _start_curation
 
     _start_curation()
+
+
+@app.on_event("startup")
+async def _startup_ig_backfill_scheduler() -> None:
+    """n8n 의존 없이 앱 자체가 과거영상을 계정별 소량씩 IG 백필(env 로 켜짐)."""
+    from app.admin.ops.services.ig_backfill_scheduler import start as _start_ig_backfill
+
+    _start_ig_backfill()
