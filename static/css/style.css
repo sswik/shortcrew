@@ -664,9 +664,34 @@ a {
 
 .product-card__media {
     display: block;
+    position: relative;
     border-radius: 8px;
     overflow: hidden;
     line-height: 0;
+}
+
+/* 자동 큐레이션 번호 배지(001..) — 좌상단 */
+.product-card__no {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.55rem;
+    height: 1.55rem;
+    padding: 0 0.42rem;
+    border-radius: 999px;
+    background: var(--mall-accent, var(--tap-accent, rgba(17, 24, 39, 0.82)));
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+    pointer-events: none;
 }
 
 .product-card__media img {

@@ -62,7 +62,8 @@ def _sheet_direct_products_response(cid: str, channel: dict, now: float) -> Resp
                 "productUrl": (r[5] or "").strip(),
                 "deepLink": (r[6] or "").strip(),
             })
-    if len(items) > 1:
+    # 기본은 큐레이션 고정순서(시트 행 순서=번호). env MALL_SHUFFLE_DAILY=1 이면 일일셔플.
+    if len(items) > 1 and (os.environ.get("MALL_SHUFFLE_DAILY") or "").strip().lower() in ("1", "true", "yes", "on"):
         random.Random(str(date.today())).shuffle(items)
     body = json.dumps(items, ensure_ascii=False).encode()
     with _mall_products_cache_lock:
@@ -149,7 +150,8 @@ def mall_products_response(channel_id: str = "") -> Response:
     body = resp.content
     try:
         items = json.loads(body)
-        if isinstance(items, list) and len(items) > 1:
+        if (isinstance(items, list) and len(items) > 1
+                and (os.environ.get("MALL_SHUFFLE_DAILY") or "").strip().lower() in ("1", "true", "yes", "on")):
             random.Random(str(date.today())).shuffle(items)
             body = json.dumps(items, ensure_ascii=False).encode()
     except (json.JSONDecodeError, TypeError):

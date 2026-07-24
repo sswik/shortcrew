@@ -123,7 +123,12 @@
         var kw = String(currentKeyword || "").trim().toLowerCase();
         if (!kw) return list;
         return list.filter(function (p) {
-            return pickName(p).toLowerCase().indexOf(kw) !== -1;
+            if (pickName(p).toLowerCase().indexOf(kw) !== -1) return true;
+            // 번호로도 검색: 숫자면 정확매칭("001"·"07"·"7" → 해당 번호)
+            if (p.__no && /^\d+$/.test(kw)) {
+                if (String(p.__no) === String(parseInt(kw, 10))) return true;
+            }
+            return false;
         });
     }
 
@@ -359,6 +364,13 @@
             var media = document.createElement("div");
             media.className = "product-card__media";
             media.appendChild(buildThumbFrame(imgSrc, workerBase, name));
+            // 자동 큐레이션 번호(001..) — 카드 좌상단 배지
+            if (p.__no) {
+                var noBadge = document.createElement("span");
+                noBadge.className = "product-card__no";
+                noBadge.textContent = ("000" + p.__no).slice(-3);
+                media.appendChild(noBadge);
+            }
             card.appendChild(media);
 
             // sample/malls/05-homecam-short-mall/js/components/product-card.js 패턴과 동일:
@@ -567,6 +579,10 @@
             .then(function (data) {
                 if (loading) loading.remove();
                 var list = normalizeList(data);
+                // 큐레이션 순서대로 자동 번호(001..). 시트 행 순서 바꾸면 번호도 따라 재정렬됨.
+                list.forEach(function (p, i) {
+                    if (p && typeof p === "object") p.__no = i + 1;
+                });
                 allProducts = list;
                 currentPage = 1;
                 activeCategory = "";
