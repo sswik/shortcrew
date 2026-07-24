@@ -31,6 +31,15 @@ def _graph_version() -> str:
     return (os.environ.get("IG_GRAPH_API_VERSION") or "v21.0").strip() or "v21.0"
 
 
+def _thumb_offset_ms() -> str | None:
+    """릴스 커버 프레임 시점(ms). 인트로 음영 회피용 기본 2000ms.
+
+    `IG_REEL_THUMB_OFFSET_MS` 로 조절(0/비숫자면 미지정 → IG 기본 첫 프레임).
+    """
+    raw = (os.environ.get("IG_REEL_THUMB_OFFSET_MS") or "2000").strip()
+    return raw if raw.isdigit() and int(raw) > 0 else None
+
+
 def require_ops_token(x_ops_token: str | None = Header(default=None)) -> None:
     """n8n→FastAPI 공유 토큰 검증. OPS_API_TOKEN 미설정이면 503(잠금)."""
     expected = (os.environ.get("OPS_API_TOKEN") or "").strip()
@@ -85,6 +94,9 @@ async def publish_reel(
         "caption": body.caption or "",
         "share_to_feed": "true" if body.share_to_feed else "false",
     }
+    _thumb = _thumb_offset_ms()
+    if _thumb:
+        create_payload["thumb_offset"] = _thumb
 
     if body.dry_run:
         return {

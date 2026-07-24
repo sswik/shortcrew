@@ -28,6 +28,15 @@ def _graph_version() -> str:
     return (os.environ.get("IG_GRAPH_API_VERSION") or "v21.0").strip() or "v21.0"
 
 
+def _thumb_offset_ms() -> str | None:
+    """릴스 커버로 쓸 프레임 시점(ms). 인트로 음영을 건너뛰기 위한 기본 2000ms.
+
+    `IG_REEL_THUMB_OFFSET_MS` 로 조절(0 또는 비숫자면 미지정 → IG 기본 첫 프레임).
+    """
+    raw = (os.environ.get("IG_REEL_THUMB_OFFSET_MS") or "2000").strip()
+    return raw if raw.isdigit() and int(raw) > 0 else None
+
+
 async def publish_reel_to_ig(
     *,
     channel_id: str,
@@ -56,6 +65,9 @@ async def publish_reel_to_ig(
         "caption": caption or "",
         "share_to_feed": "true" if share_to_feed else "false",
     }
+    _thumb = _thumb_offset_ms()
+    if _thumb:
+        create_payload["thumb_offset"] = _thumb
     if dry_run:
         return {
             "dry_run": True,
