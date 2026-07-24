@@ -70,6 +70,7 @@ class CurateBody(BaseModel):
     persona: str = ""               # Gemini 선정 페르소나. 비우면 채널명 기반.
     search_limit: int = 20          # 키워드당 검색 상한.
     max_items: int | None = None    # 이번 실행 주제(=상품) 개수. None 이면 env(_MAX_KEYWORDS). 초기시딩=20/증분=3 분리용.
+    max_blogs: int | None = None    # 블로그 생성 상한(auto_blog 시). None=상품마다 전부. 예) 20상품+블로그 3개.
     dry_run: bool = True            # true 면 적재 없이 미리보기.
     auto_blog: bool = False         # true 면 적재된 상품마다 블로그(Review) 자동 생성·발행(dry_run 시 무시).
     auto_dm: bool = False           # true 면 적재된 상품마다 자동DM 규칙 생성(다음 발행 게시물 대상, 상품 딥링크).
@@ -269,7 +270,8 @@ async def curate_products(
         pk["sheet"] = "ok"
 
         # 블로그 → DB(blog_posts). 상품이미지 필수(없으면 스킵). 즉시 published(몰 블로그 탭 노출).
-        if want_blog:
+        # max_blogs 지정 시 그 개수까지만 생성(예: 상품 20개 중 상위 3개만 블로그).
+        if want_blog and (body.max_blogs is None or blogs_created < body.max_blogs):
             try:
                 price = float(p.get("price") or 0)
             except (TypeError, ValueError):

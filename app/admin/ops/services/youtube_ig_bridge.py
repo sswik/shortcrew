@@ -103,4 +103,12 @@ async def publish_reel_to_ig(
         if not media_id:
             raise RuntimeError(f"publish failed: {p.text[:200]}")
 
+    # 업로드 완료 → 전용 디스코드 채널 알림(실패해도 발행 결과엔 영향 없음)
+    from app.admin.ops.services import discord_notify
+
+    await discord_notify.notify(
+        f"📸 인스타 업로드 완료 [{cid}] media_id={media_id}",
+        env_key="DISCORD_WEBHOOK_IG",
+    )
+
     return {"ok": True, "channel_id": cid, "creation_id": creation_id, "media_id": media_id}
