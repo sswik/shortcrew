@@ -78,46 +78,54 @@ async def publish_reel_to_ig(
             "publish_url": f"{base}/{acct}/media_publish",
         }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # 1) 컨테이너 생성
-        r = await client.post(f"{base}/{acct}/media", data={**create_payload, "access_token": token})
-        if r.status_code >= 400:
-            raise RuntimeError(f"graph create {r.status_code}: {r.text[:300]}")
-        creation_id = str(r.json().get("id") or "").strip()
-        if not creation_id:
-            raise RuntimeError(f"no creation id: {r.text[:200]}")
-
-        # 2) 인코딩 완료 폴링
-        status = ""
-        for _try in range(_POLL_MAX_TRIES):
-            s = await client.get(
-                f"{base}/{creation_id}",
-                params={"fields": "status_code", "access_token": token},
-            )
-            if s.status_code < 400:
-                status = str(s.json().get("status_code") or "").upper()
-                if status == "FINISHED":
-                    break
-                if status in ("ERROR", "EXPIRED"):
-                    raise RuntimeError(f"container {status}: {s.text[:200]}")
-            await asyncio.sleep(_POLL_INTERVAL_S)
-        if status != "FINISHED":
-            raise RuntimeError(f"container not ready (last={status})")
-
-        # 3) 발행
-        p = await client.post(
-            f"{base}/{acct}/media_publish",
-            data={"creation_id": creation_id, "access_token": token},
-        )
-        if p.status_code >= 400:
-            raise RuntimeError(f"graph publish {p.status_code}: {p.text[:300]}")
-        media_id = str(p.json().get("id") or "").strip()
-        if not media_id:
-            raise RuntimeError(f"publish failed: {p.text[:200]}")
-
-    # 업로드 완료 → 전용 디스코드 채널 알림(실패해도 발행 결과엔 영향 없음)
     from app.admin.ops.services import discord_notify
 
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # 1) 컨테이너 생성
+            r = await client.post(f"{base}/{acct}/media", data={**create_payload, "access_token": token})
+            if r.status_code >= 400:
+                raise RuntimeError(f"graph create {r.status_code}: {r.text[:300]}")
+            creation_id = str(r.json().get("id") or "").strip()
+            if not creation_id:
+                raise RuntimeError(f"no creation id: {r.text[:200]}")
+
+            # 2) 인코딩 완료 폴링
+            status = ""
+            for _try in range(_POLL_MAX_TRIES):
+                s = await client.get(
+                    f"{base}/{creation_id}",
+                    params={"fields": "status_code", "access_token": token},
+                )
+                if s.status_code < 400:
+                    status = str(s.json().get("status_code") or "").upper()
+                    if status == "FINISHED":
+                        break
+                    if status in ("ERROR", "EXPIRED"):
+                        raise RuntimeError(f"container {status}: {s.text[:200]}")
+                await asyncio.sleep(_POLL_INTERVAL_S)
+            if status != "FINISHED":
+                raise RuntimeError(f"container not ready (last={status})")
+
+            # 3) 발행
+            p = await client.post(
+                f"{base}/{acct}/media_publish",
+                data={"creation_id": creation_id, "access_token": token},
+            )
+            if p.status_code >= 400:
+                raise RuntimeError(f"graph publish {p.status_code}: {p.text[:300]}")
+            media_id = str(p.json().get("id") or "").strip()
+            if not media_id:
+                raise RuntimeError(f"publish failed: {p.text[:200]}")
+    except Exception as e:
+        # 발행 실패 → 통합 실패 알림(알림 자체는 발행 결과에 영향 주지 않고 예외 재전파)
+        await discord_notify.notify(
+            f"🔴 인스타 업로드 실패 [{cid}]: {str(e)[:200]}",
+            env_key="DISCORD_WEBHOOK_FAIL",
+        )
+        raise
+
+    # 업로드 완료 → 전용 디스코드 채널 알림(실패해도 발행 결과엔 영향 없음)
     await discord_notify.notify(
         f"📸 인스타 업로드 완료 [{cid}] media_id={media_id}",
         env_key="DISCORD_WEBHOOK_IG",

@@ -70,14 +70,40 @@ async def run_curation_once(
         return {"skipped": "no channel"}
     ab = _truthy("CURATION_AUTO_BLOG") if auto_blog is None else auto_blog
     body = CurateBody(channel_id=cid, dry_run=False, auto_blog=ab, max_items=max_items)
-    with SessionLocal() as db:
-        result = await curate_products(body, db=db, _=None)
+    from app.admin.ops.services import discord_notify
+
+    try:
+        with SessionLocal() as db:
+            result = await curate_products(body, db=db, _=None)
+    except Exception as e:  # 큐레이션 실패 → 통합 실패 알림 후 재전파
+        await discord_notify.notify(
+            f"🔴 상품 큐레이션 실패 [{cid}]: {str(e)[:200]}",
+            env_key="DISCORD_WEBHOOK_FAIL",
+        )
+        raise
+    written = result.get("written_to_sheet") or 0
+    blogs = result.get("blogs_created") or 0
     logger.info(
-        "curation_scheduler done channel=%s written=%s blogs=%s",
-        cid,
-        result.get("written_to_sheet"),
-        result.get("blogs_created"),
+        "curation_scheduler done channel=%s written=%s blogs=%s", cid, written, blogs,
     )
+    # 생성 성공(상품 큐레이션 + 블로그 글 생성) → 콘텐츠 채널
+    await discord_notify.notify(
+        f"🛒 상품 큐레이션 완료 [{cid}] 상품 {written}개 · 블로그 {blogs}개",
+        env_key="DISCORD_WEBHOOK_CONTENT",
+    )
+    # 블로그 생성 중 개별 실패(이미지 없음 등 skip 제외, 실제 error 만) → 실패 채널
+    picks = result.get("picks")
+    blog_errs: list[str] = []
+    if isinstance(picks, list):
+        for pk in picks:
+            b = pk.get("blog") if isinstance(pk, dict) else None
+            if isinstance(b, str) and b.startswith("error"):
+                blog_errs.append(b)
+    if blog_errs:
+        await discord_notify.notify(
+            f"🔴 블로그 글 발행 실패 [{cid}] {len(blog_errs)}건: {blog_errs[0][:150]}",
+            env_key="DISCORD_WEBHOOK_FAIL",
+        )
     return result
 
 
