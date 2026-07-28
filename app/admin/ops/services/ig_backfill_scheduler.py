@@ -222,6 +222,22 @@ def _video_sheet_id(cid: str) -> str | None:
     return None
 
 
+def _only_before() -> datetime | None:
+    """이 날짜(YYYY-MM-DD) 이후 업로드분은 백필 제외 → 인라인 크로스포스트(신규발행)와 이중발행 방지.
+
+    펌프 인라인 크로스포스트가 신규영상을 이미 IG에 올리지만 시트 ig_media_id 는 안 쓴다.
+    백필이 그 신규분을 나중에 재발행하지 않도록, 크로스포스트 개시일 이후 업로드분은 건너뛴다.
+    미설정이면 제한 없음(과거 백필 전용 채널 등).
+    """
+    raw = (os.environ.get("IG_BACKFILL_ONLY_BEFORE") or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=_KST)
+    except ValueError:
+        return None
+
+
 def _parse_uploaded(val: str) -> datetime | None:
     val = (val or "").strip()
     if not val:
@@ -255,6 +271,7 @@ async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int, done_statu
         return None
 
     now = datetime.now(_KST)
+    only_before = _only_before()
     for r, row in enumerate(grid[1:], start=2):  # 시트 실제 행번호(헤더=1)
         def cell(i: int) -> str:
             return row[i].strip() if 0 <= i < len(row) and row[i] is not None else ""
@@ -268,6 +285,8 @@ async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int, done_statu
         up = _parse_uploaded(cell(i_up)) if i_up >= 0 else None
         if up and (now - up) < timedelta(hours=min_age_h):
             continue  # 너무 최근 영상 → 당일 신규분과 충돌 방지
+        if only_before and up and up >= only_before:
+            continue  # 인라인 크로스포스트가 처리하는 신규분 → 백필 제외(이중발행 방지)
         title = cell(i_ti) if i_ti >= 0 else ""
         desc = cell(i_de) if i_de >= 0 else ""
         caption = (title + "\n\n" + desc).strip()[:2100]
