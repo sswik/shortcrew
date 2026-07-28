@@ -98,3 +98,11 @@ async def _startup_ig_backfill_scheduler() -> None:
     from app.admin.ops.services.ig_backfill_scheduler import start as _start_ig_backfill
 
     _start_ig_backfill()
+
+
+@app.on_event("startup")
+async def _startup_ig_token_refresh() -> None:
+    """IG 장기토큰 40일 주기 자동갱신(만료 근절, env 로 켜짐)."""
+    from app.admin.ops.services.ig_token_refresh import start as _start_ig_token
+
+    _start_ig_token()

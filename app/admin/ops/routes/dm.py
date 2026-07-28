@@ -27,13 +27,15 @@ _TRIGGER_TYPES = ("any", "keyword")
 
 
 def _ig_account(cid: str) -> tuple[str, str]:
-    """채널 IG 계정 ID·토큰(env 직접). 없으면 빈 문자열."""
+    """채널 IG 계정 ID·토큰. 토큰은 자동갱신 저장소(refresh본) 우선, 없으면 env fallback."""
     cid = (cid or "").strip()
     if not cid:
         return "", ""
+    from app.admin.ops.services.ig_token_refresh import current_token
+
     return (
         os.environ.get(channel_env(cid, "IG_ACCOUNT_ID"), "").strip(),
-        os.environ.get(channel_env(cid, "IG_ACCESS_TOKEN"), "").strip(),
+        current_token(cid),
     )
 
 
