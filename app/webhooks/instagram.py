@@ -59,7 +59,10 @@ def _resolve_ig_channel(account_id: str) -> tuple[dict, str] | None:
         if not cid:
             continue
         if account_id in _channel_ig_ids(cid):
-            token = os.environ.get(channel_env(cid, "IG_ACCESS_TOKEN"), "").strip()
+            # 자동갱신 저장소(refresh본) 우선, env fallback — 40일 갱신 후에도 유효토큰 사용
+            from app.admin.ops.services.ig_token_refresh import current_token
+
+            token = current_token(cid) or os.environ.get(channel_env(cid, "IG_ACCESS_TOKEN"), "").strip()
             return ch, token
     return None
 

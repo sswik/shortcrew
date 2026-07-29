@@ -151,3 +151,102 @@ async def publish_reel(
         "media_id": media_id,
         "permalink": permalink,
     }
+
+
+class ReelFunnelBody(BaseModel):
+    """발행된 릴스에 CTA 첫댓글 + 댓글→DM 규칙 자동생성(인플루언서 퍼널)."""
+
+    channel_id: str = ""
+    media_id: str = ""          # publish-reel 응답의 media_id
+    keyword: str = ""           # 상품 키워드(예: "드라이버") — 이 댓글 달면 DM
+    coupang_url: str = ""       # 상품 쿠팡 URL(딥링크 자동생성). deep_link 있으면 무시
+    deep_link: str = ""         # 이미 만든 딥링크(우선)
+    mall_slug: str = ""         # 몰 링크(shortcrew.co.kr/{slug})
+    product_title: str = ""     # 상품명(DM 문구)
+    greeting: str = ""          # 인사멘트(비우면 기본)
+    cta_comment: str = ""       # CTA 첫댓글(비우면 keyword로 생성)
+
+
+@router.post("/reel-funnel")
+async def setup_reel_funnel(body: ReelFunnelBody, _: None = Depends(require_ops_token)):
+    """발행된 릴스에 ① CTA 첫댓글 ② 댓글→DM 규칙(키워드=상품, DM=인사+딥링크+몰링크) 자동생성."""
+    import json as _json
+
+    cid = (body.channel_id or "").strip()
+    media_id = (body.media_id or "").strip()
+    keyword = (body.keyword or "").strip()
+    if not cid or not media_id or not keyword:
+        raise HTTPException(status_code=400, detail="channel_id, media_id, keyword required")
+    acct, token = _ig_account(cid)
+    if not acct or not token:
+        raise HTTPException(status_code=400, detail=f"channel {cid} has no IG account/token")
+    ver = _graph_version()
+    base = f"https://graph.instagram.com/{ver}"
+
+    # 1) 딥링크(쿠팡 URL → 딥링크, subId=shortcrew 고정)
+    deep = (body.deep_link or "").strip()
+    coupang_url = (body.coupang_url or "").strip()
+    if not deep and coupang_url:
+        from app.admin.ops.services.coupang import generate_deeplinks
+
+        ak = (os.environ.get("COUPANG_ACCESS_KEY") or "").strip()
+        sk = (os.environ.get("COUPANG_SECRET_KEY") or "").strip()
+        if ak and sk:
+            try:
+                m = await generate_deeplinks([coupang_url], ak, sk)
+                deep = (m.get(coupang_url) or "").strip() or deep
+            except Exception:
+                deep = deep
+
+    # 2) DM 문구(인사 + 상품 + 몰링크). 딥링크는 dm_link(웹훅이 본문 뒤에 붙임)
+    mall_link = f"https://shortcrew.co.kr/{body.mall_slug.strip()}" if (body.mall_slug or "").strip() else ""
+    greeting = (body.greeting or "").strip() or "안녕하세요! 😊 관심 가져주셔서 감사해요."
+    title = (body.product_title or "").strip()
+    dm_lines = [greeting]
+    if title:
+        dm_lines.append(f"문의주신 '{title}' 정보 보내드려요 🛒")
+    if mall_link:
+        dm_lines.append(f"▶ 더 많은 상품: {mall_link}")
+    dm_message = "\n".join(dm_lines)
+
+    # 3) CTA 첫댓글(핀 고정은 API 미지원 → 첫댓글로만)
+    cta = (body.cta_comment or "").strip() or f"댓글에 '{keyword}' 남겨주시면 상품정보를 DM으로 보내드려요! 🎁"
+    comment_id = ""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            r = await client.post(f"{base}/{media_id}/comments", data={"message": cta, "access_token": token})
+            if r.status_code < 400:
+                comment_id = str(r.json().get("id") or "")
+        except httpx.HTTPError:
+            comment_id = ""
+
+    # 4) 댓글→DM 규칙 생성(specific media + keyword)
+    from models import DmAutomation, SessionLocal
+
+    with SessionLocal() as db:
+        rule = DmAutomation(
+            channel_id=cid,
+            name=f"[자동] {keyword}",
+            target_mode="specific",
+            ig_media_id=media_id,
+            trigger_type="keyword",
+            keywords_json=_json.dumps([keyword], ensure_ascii=False),
+            public_reply_enabled=True,
+            public_reply_variants_json=_json.dumps(
+                ["DM 보내드렸어요! 확인 부탁드려요 📩", "메시지 확인해주세요! 🙌", "DM 도착했어요 ✨"],
+                ensure_ascii=False,
+            ),
+            dm_message=dm_message,
+            dm_link=deep,
+            dm_product_ref=coupang_url or None,
+            dm_product_title=title or None,
+            active=True,
+        )
+        db.add(rule)
+        db.commit()
+        rule_id = rule.id
+
+    return {
+        "ok": True, "channel_id": cid, "media_id": media_id, "rule_id": rule_id,
+        "comment_id": comment_id, "keyword": keyword, "deep_link": deep, "mall_link": mall_link,
+    }
