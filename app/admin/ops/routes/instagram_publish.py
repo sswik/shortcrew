@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -175,8 +176,21 @@ async def setup_reel_funnel(body: ReelFunnelBody, _: None = Depends(require_ops_
     cid = (body.channel_id or "").strip()
     media_id = (body.media_id or "").strip()
     keyword = (body.keyword or "").strip()
-    if not cid or not media_id or not keyword:
-        raise HTTPException(status_code=400, detail="channel_id, media_id, keyword required")
+    title = (body.product_title or "").strip()
+    if not cid or not media_id:
+        raise HTTPException(status_code=400, detail="channel_id, media_id required")
+    # 키워드 미지정 시 상품명에서 Gemini로 자동 추출(브랜드 제외 상품유형어)
+    if not keyword and title:
+        gem = (os.environ.get("GOOGLE_GEMINI_KEY") or "").strip()
+        if gem:
+            from app.admin.ops.services.gemini_curator import derive_dm_keyword
+
+            keyword = (await derive_dm_keyword(title, gem)).strip()
+    if not keyword:  # 폴백: 상품명 끝 단어들
+        toks = [t for t in re.sub(r"(사용\s*후기|사용후|후기|리뷰|review)", "", title).split() if t]
+        keyword = "".join(toks[-2:]) if len(toks) >= 2 else (toks[-1] if toks else "")
+    if not keyword:
+        raise HTTPException(status_code=400, detail="keyword required (or product_title for auto)")
     acct, token = _ig_account(cid)
     if not acct or not token:
         raise HTTPException(status_code=400, detail=f"channel {cid} has no IG account/token")

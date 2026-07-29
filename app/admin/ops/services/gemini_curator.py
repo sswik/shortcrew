@@ -192,3 +192,34 @@ async def generate_dm_message(
         config=types.GenerateContentConfig(temperature=temperature),
     )
     return (response.text or "").strip()
+
+
+async def derive_dm_keyword(product_title: str, api_key: str) -> str:
+    """상품명 → 댓글 CTA용 짧은 키워드 1개(브랜드 제외, 상품유형어).
+
+    예: "투딘 퍼펙트 스윙 트레이너 사용 후기" → "스윙트레이너"
+        "슬라이스 방지 골프티 사용 후기" → "골프티"
+    실패 시 빈 문자열(호출측에서 폴백)."""
+    title = (product_title or "").strip()
+    if not title or not api_key:
+        return ""
+    prompt = (
+        "다음 상품의 '핵심 키워드'를 딱 한 단어(공백 없이)로만 출력해줘. "
+        "브랜드명·수식어 제외, 사람들이 댓글로 자연스럽게 남길 짧은 상품 유형어로. "
+        "다른 말·기호·따옴표 없이 단어만.\n"
+        "예) '투딘 퍼펙트 스윙 트레이너 사용 후기' → 스윙트레이너\n"
+        "예) '슬라이스 방지 골프티 사용 후기' → 골프티\n"
+        f"상품: {title}\n키워드:"
+    )
+    try:
+        client = genai.Client(api_key=api_key)
+        resp = await _generate_with_retry(
+            client, model="gemini-2.5-flash", contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=200),
+        )
+        raw = (resp.text or "").strip()
+        # 첫 토큰, 따옴표·공백 제거
+        kw = raw.splitlines()[0].strip().strip("'\"` ").replace(" ", "")
+        return kw[:20]
+    except Exception:
+        return ""
