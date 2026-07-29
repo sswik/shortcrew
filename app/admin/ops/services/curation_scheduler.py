@@ -36,7 +36,13 @@ def _hour() -> int:
 
 
 def curation_channels() -> list[str]:
-    """큐레이션 로테이션 대상 = 상품시트가 설정된 커머스 채널(get_channels 순서)."""
+    """큐레이션 로테이션 대상.
+
+    env `CURATION_SCHEDULER_CHANNELS`(쉼표구분)가 있으면 그 채널만(예: 인플루언서 02,03,04).
+    없으면 상품시트가 설정된 전 커머스 채널(get_channels 순서)."""
+    override = (os.environ.get("CURATION_SCHEDULER_CHANNELS") or "").strip()
+    if override:
+        return [c.strip() for c in override.split(",") if c.strip()]
     from app.admin.ops.channels import get_channels
 
     return [
