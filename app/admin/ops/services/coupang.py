@@ -15,6 +15,31 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+def clean_product_url(product_id: str, product_url: str = "") -> str:
+    """딥링크 입력용 클린 상품 URL: `vp/products/{id}` + itemId/vendorItemId 보존.
+
+    itemId/vendorItemId 는 제휴태그가 아니라 **상품 옵션 식별자**라, 보존해야 인스타그램
+    인앱브라우저 같은 콜드세션(쿠키·앱 없음)에서도 상세로 직행한다. bare URL 은 그런 환경에서
+    "고객님을 위한 상품" 추천페이지로 빠진다(web/모바일은 세션·앱으로 해석돼 정상).
+
+    lptag/src 등 **제휴태그는 제외** — 넣으면 MIXED 토큰이 되어 subId(shortcrew) 가 유실된다.
+    subId 는 딥링크 API 가 부여하며, itemId/vendorItemId 만 있는 이 URL 에선 유실되지 않는다(검증완료).
+    """
+    pid = str(product_id or "").strip()
+    if not pid:
+        return ""
+    base = f"https://www.coupang.com/vp/products/{pid}"
+    src = str(product_url or "")
+    parts: list[str] = []
+    m_item = re.search(r"[?&]itemId=(\d+)", src)
+    m_vendor = re.search(r"[?&]vendorItemId=(\d+)", src)
+    if m_item:
+        parts.append(f"itemId={m_item.group(1)}")
+    if m_vendor:
+        parts.append(f"vendorItemId={m_vendor.group(1)}")
+    return base + ("?" + "&".join(parts) if parts else "")
+
+
 def _url_kind(url: str) -> str:
     value = (url or "").strip().lower()
     if not value:

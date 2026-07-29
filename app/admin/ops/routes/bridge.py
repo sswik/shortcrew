@@ -108,16 +108,16 @@ def _curate_result(body, slug, pool, pool_meta, persona, picks, *, written, blog
 
 
 def _clean_product_url(p: dict) -> str:
-    """딥링크 입력용 클린 상품 URL(`vp/products/{id}`).
+    """딥링크 입력용 클린 상품 URL(`vp/products/{id}` + itemId/vendorItemId).
 
-    쿠팡 검색 결과 URL은 이미 lptag·src 등 제휴태그가 붙어 있어, 그대로 딥링크하면
-    MIXED 토큰이 되며 subId(shortcrew)가 랜딩 URL에서 유실된다. 클린 URL로 넣어야
-    subId 가 정상 전파된다(검증 완료).
+    제휴태그(lptag·src)는 제거해 subId 유실을 막고, itemId/vendorItemId 는 보존해
+    인스타 인앱브라우저 콜드세션에서도 상세로 직행하게 한다(coupang.clean_product_url 검증완료).
     """
-    pid = str(p.get("productId") or "").strip()
-    if pid:
-        return f"https://www.coupang.com/vp/products/{pid}"
-    return str(p.get("productUrl") or "").strip()
+    from app.admin.ops.services.coupang import clean_product_url
+
+    return clean_product_url(p.get("productId") or "", p.get("productUrl") or "") or str(
+        p.get("productUrl") or ""
+    ).strip()
 
 
 def _dedupe_pool(products: list[dict]) -> list[dict]:

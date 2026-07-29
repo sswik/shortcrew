@@ -63,7 +63,10 @@ async def _enrich_products_with_deeplinks(
             continue
         pid = p.get("productId")
         if pid:
-            clean_url = f"https://www.coupang.com/vp/products/{pid}"
+            from app.admin.ops.services.coupang import clean_product_url
+
+            # itemId/vendorItemId 보존(인스타 콜드세션 상세직행) — subId 유실 없음(검증완료)
+            clean_url = clean_product_url(pid, p.get("productUrl") or "")
             p["_clean_url"] = clean_url
             dl = str(p.get("deepLink") or "").strip()
             if dl:
