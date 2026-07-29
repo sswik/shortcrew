@@ -215,13 +215,12 @@ async def setup_reel_funnel(body: ReelFunnelBody, _: None = Depends(require_ops_
     # 2) DM 문구(인사 + 상품 + 몰링크). 딥링크는 dm_link(웹훅이 본문 뒤에 붙임)
     mall_link = f"https://shortcrew.co.kr/{body.mall_slug.strip()}" if (body.mall_slug or "").strip() else ""
     greeting = (body.greeting or "").strip() or "안녕하세요! 😊 관심 가져주셔서 감사해요."
-    title = (body.product_title or "").strip()
-    dm_lines = [greeting]
-    if title:
-        dm_lines.append(f"문의주신 '{title}' 정보 보내드려요 🛒")
+    dm_lines = [greeting, f"문의주신 '{keyword}' 정보 보내드려요 🛒", ""]
+    if deep:
+        dm_lines += ["[관련 상품]", deep, ""]
     if mall_link:
-        dm_lines.append(f"▶ 더 많은 상품: {mall_link}")
-    dm_message = "\n".join(dm_lines)
+        dm_lines += ["[더 많은 상품이 궁금하다면?]", mall_link]
+    dm_message = "\n".join(dm_lines).strip()
 
     # 3) CTA 첫댓글(핀 고정은 API 미지원 → 첫댓글로만)
     cta = (body.cta_comment or "").strip() or f"댓글에 '{keyword}' 남겨주시면 상품정보를 DM으로 보내드려요! 🎁"
@@ -251,8 +250,8 @@ async def setup_reel_funnel(body: ReelFunnelBody, _: None = Depends(require_ops_
                 ensure_ascii=False,
             ),
             dm_message=dm_message,
-            dm_link=deep,
-            dm_product_ref=coupang_url or None,
+            dm_link="",  # 딥링크는 dm_message([관련 상품])에 이미 포함 → 웹훅 중복부착 방지
+            dm_product_ref=(deep or coupang_url) or None,
             dm_product_title=title or None,
             active=True,
         )
