@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -42,6 +43,23 @@ router = APIRouter()
 # 쿼터·프롬프트 보호 상한. CURATION_MAX_ITEMS 로 채널당 주제(=상품) 개수 조절(기본 10).
 _MAX_KEYWORDS = max(1, int((os.environ.get("CURATION_MAX_ITEMS") or "10").strip() or "10"))
 _MAX_POOL = 40
+_KST = timezone(timedelta(hours=9))
+
+
+def _rotate_window(seq: list[str], size: int) -> list[str]:
+    """채널 키워드에서 '날짜별로 회전하는' size개 슬라이스.
+
+    매일 앞 size개만 고정으로 쓰면(예: 20개 중 항상 앞 3개) 같은 상품만 나와
+    중복스킵→0건이 반복된다. day-of-year 로 시작 오프셋을 밀어 전체 키워드를
+    순환 소진 → 매일 신선한 후보. size가 전체 이상이면 회전 의미 없어 그대로.
+    """
+    if not seq or size <= 0:
+        return seq[: max(0, size)]
+    if size >= len(seq):
+        return seq[:size]
+    doy = datetime.now(_KST).timetuple().tm_yday
+    off = (doy * size) % len(seq)
+    return [seq[(off + i) % len(seq)] for i in range(size)]
 
 
 def _coupang_keys() -> tuple[str, str]:
@@ -156,8 +174,11 @@ async def curate_products(
     # 이번 실행 상품 개수(주제 수). max_items 지정 시 그 값, 아니면 env 기본(_MAX_KEYWORDS).
     limit = body.max_items if (body.max_items and body.max_items > 0) else _MAX_KEYWORDS
 
-    keywords = [k.strip() for k in (body.search_keywords or ch.get("trend_keywords") or []) if k.strip()]
-    keywords = keywords[:limit]
+    # body 명시 키워드는 그대로, 채널 trend_keywords 는 날짜별 회전 윈도우로(매일 다른 슬라이스 → 포화/0건 방지).
+    if body.search_keywords:
+        keywords = [k.strip() for k in body.search_keywords if k.strip()][:limit]
+    else:
+        keywords = _rotate_window([k.strip() for k in (ch.get("trend_keywords") or []) if k.strip()], limit)
     if not keywords:
         raise HTTPException(status_code=400, detail="검색 키워드가 없습니다(search_keywords 또는 채널 trend_keywords).")
 
@@ -170,9 +191,11 @@ async def curate_products(
         pool_meta.append({"keyword": kw, "found": len(res.products), "stop_reason": res.stop_reason})
     pool = _dedupe_pool(pool)[: max(_MAX_POOL, limit * 3)]
 
-    # 주제: 명시값 없으면 채널 분야 키워드(trend_keywords)를 주제로 사용 → 채널만 넘기면 자동 큐레이션(확장 기본).
-    topics_in = [t.strip() for t in (body.topics or ch.get("trend_keywords") or []) if t.strip()]
-    topics_in = topics_in[:limit]
+    # 주제: 명시값 없으면 채널 키워드를 주제로. 검색과 동일 회전 윈도우 → 그날 검색한 키워드와 정렬.
+    if body.topics:
+        topics_in = [t.strip() for t in body.topics if t.strip()][:limit]
+    else:
+        topics_in = _rotate_window([t.strip() for t in (ch.get("trend_keywords") or []) if t.strip()], limit)
 
     # 주제도 채널 키워드도 없을 때만 후보풀 미리보기(선정·적재 없음)
     if not topics_in:
