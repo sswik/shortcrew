@@ -26,6 +26,9 @@ router = APIRouter()
 # Reels 인코딩 폴링 기본값(엔드포인트가 끝까지 기다렸다 발행까지 반환).
 _POLL_INTERVAL_S = 3.0
 _POLL_MAX_TRIES = 60  # 약 3분
+# 컨테이너 ERROR 는 IG측 일시 인코딩 실패가 잦아 컨테이너 재생성 1회 재시도.
+_CONTAINER_MAX_ATTEMPTS = 2
+_CONTAINER_RETRY_WAIT_S = 5.0
 
 
 def _graph_version() -> str:
@@ -110,24 +113,39 @@ async def publish_reel(
         }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # 1) 컨테이너 생성
-        created = await _graph_post(client, f"{base}/{acct}/media", token, create_payload)
-        creation_id = str(created.get("id") or "").strip()
-        if not creation_id:
-            raise HTTPException(status_code=502, detail=f"no creation id: {created}")
-
-        # 2) 인코딩 완료 폴링
+        creation_id = ""
         status = ""
-        for _try in range(_POLL_MAX_TRIES):
-            info = await _graph_get(client, f"{base}/{creation_id}", token, {"fields": "status_code"})
-            status = str(info.get("status_code") or "").upper()
+        last_info: dict = {}
+        # 1~2) 컨테이너 생성 + 인코딩 폴링. 컨테이너 ERROR/타임아웃은 IG측 일시장애가 잦아 1회 재시도.
+        for attempt in range(_CONTAINER_MAX_ATTEMPTS):
+            created = await _graph_post(client, f"{base}/{acct}/media", token, create_payload)
+            creation_id = str(created.get("id") or "").strip()
+            if not creation_id:
+                raise HTTPException(status_code=502, detail=f"no creation id: {created}")
+
+            status = ""
+            for _try in range(_POLL_MAX_TRIES):
+                # status 필드까지 폴링 → 실패 시 IG 상세 사유(에러코드/메시지) 확보(진단·알림용)
+                info = await _graph_get(
+                    client, f"{base}/{creation_id}", token, {"fields": "status_code,status"}
+                )
+                last_info = info
+                status = str(info.get("status_code") or "").upper()
+                if status == "FINISHED":
+                    break
+                if status in ("ERROR", "EXPIRED"):
+                    break
+                await asyncio.sleep(_POLL_INTERVAL_S)
+
             if status == "FINISHED":
                 break
+            # ERROR/EXPIRED/타임아웃 — 마지막 시도가 아니면 컨테이너 재생성 후 재시도
+            if attempt < _CONTAINER_MAX_ATTEMPTS - 1:
+                await asyncio.sleep(_CONTAINER_RETRY_WAIT_S)
+                continue
             if status in ("ERROR", "EXPIRED"):
-                raise HTTPException(status_code=502, detail=f"container {status}: {info}")
-            await asyncio.sleep(_POLL_INTERVAL_S)
-        if status != "FINISHED":
-            raise HTTPException(status_code=504, detail=f"container not ready (last={status})")
+                raise HTTPException(status_code=502, detail=f"container {status}: {last_info}")
+            raise HTTPException(status_code=504, detail=f"container not ready (last={status}): {last_info}")
 
         # 3) 발행
         published = await _graph_post(
