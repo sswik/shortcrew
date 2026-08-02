@@ -208,7 +208,7 @@ class DmAutomation(Base):
     public_reply_variants_json: Mapped[str] = mapped_column(Text, default="[]")
     # DM 내용(상품 선택 → 딥링크 자동)
     dm_message: Mapped[str] = mapped_column(Text, default="")
-    dm_product_ref: Mapped[str | None] = mapped_column(String(160), nullable=True, default=None)
+    dm_product_ref: Mapped[str | None] = mapped_column(String(800), nullable=True, default=None)
     dm_product_title: Mapped[str | None] = mapped_column(String(255), nullable=True, default=None)
     dm_link: Mapped[str] = mapped_column(String(800), default="")
     # 옵션/상태
