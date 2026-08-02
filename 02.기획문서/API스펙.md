@@ -67,10 +67,10 @@
 ### 몰/클릭 (`/mall`)
 `POST /click`, `GET /clicks/recent`, `GET /clicks/summary`
 
-### 쇼츠 리뷰 (`/shorts-review`) — shortcrew 전용
+### ~~쇼츠 리뷰 (`/shorts-review`)~~ — **폐기(2026-08)**
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/run` | 쇼츠 시트 트리거 리뷰 자동 발행 수동 실행(크론과 동일 파이프라인) |
+| POST | ~~`/run`~~ | ~~쇼츠 시트 트리거 리뷰 자동 발행 수동 실행~~ — 쇼츠 시트 06:00 크론 자동 발행 폐기. 현행 인플루언서몰 자동화는 `/ai/curate`(큐레이션 스케줄러) + 유튜브/IG 크로스포스트 + 댓글→DM 퍼널로 대체 |
 
 ### DM (`/dm`)
 `GET /channels`, `GET /rules`, `POST /rules`, `PATCH /rules/{id}`, `DELETE /rules/{id}`, `GET /media`

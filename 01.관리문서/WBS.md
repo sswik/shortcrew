@@ -21,7 +21,8 @@
 | 마일스톤 | 근거 |
 |----------|------|
 | 리뷰 발행 시스템(Toast UI) | `admin/reviews*`, `review_publish_service.py` |
-| 쇼츠 시트 트리거 자동화 + 일일 크론 | `scripts/run_shorts_sheet_reviews.py`, `deploy/shorts-review-cron.crontab`, `docs/06`·`07` |
-| AI 리뷰 초안 | `gemini_review_draft.py`, `docs/06` |
-| 인스타 두-ID 하드닝 | `docs/10` |
-| 공개 UI 리브랜드 | `docs/08`, `mall_theme.py`(시안/앰버) |
+| ~~쇼츠 시트 트리거 자동화 + 일일 크론~~ (폐기) | 폐기됨 — 06:00 크론 발행 중단 |
+| 인플루언서몰 그로스 퍼널 | Gemini 상품 큐레이션(내부 스케줄러 19시 KST) → 유튜브/IG 크로스포스트 → 댓글→DM 자동퍼널 → IG 토큰 40일 자동 갱신, `06.운영가이드/11~14` |
+| AI 리뷰 초안 | `gemini_review_draft.py`, `06.운영가이드/06`(폐기 가이드 내 초안 부분) |
+| 인스타 두-ID 하드닝 | `06.운영가이드/08` |
+| 공개 UI 리브랜드 | `06.운영가이드/08`, `mall_theme.py`(시안/앰버) |
