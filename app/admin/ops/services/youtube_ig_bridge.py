@@ -22,6 +22,9 @@ from app.admin.ops.routes.dm import _ig_account
 # Reels 인코딩 폴링(엔드포인트가 끝까지 대기 후 발행까지 반환).
 _POLL_INTERVAL_S = 3.0
 _POLL_MAX_TRIES = 60  # 약 3분
+# 컨테이너 ERROR 는 IG측 일시 인코딩 실패가 잦아 컨테이너 재생성 1회 재시도.
+_CONTAINER_MAX_ATTEMPTS = 2
+_CONTAINER_RETRY_WAIT_S = 5.0
 
 
 def _graph_version() -> str:
@@ -82,30 +85,44 @@ async def publish_reel_to_ig(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # 1) 컨테이너 생성
-            r = await client.post(f"{base}/{acct}/media", data={**create_payload, "access_token": token})
-            if r.status_code >= 400:
-                raise RuntimeError(f"graph create {r.status_code}: {r.text[:300]}")
-            creation_id = str(r.json().get("id") or "").strip()
-            if not creation_id:
-                raise RuntimeError(f"no creation id: {r.text[:200]}")
-
-            # 2) 인코딩 완료 폴링
+            creation_id = ""
             status = ""
-            for _try in range(_POLL_MAX_TRIES):
-                s = await client.get(
-                    f"{base}/{creation_id}",
-                    params={"fields": "status_code", "access_token": token},
-                )
-                if s.status_code < 400:
-                    status = str(s.json().get("status_code") or "").upper()
-                    if status == "FINISHED":
-                        break
-                    if status in ("ERROR", "EXPIRED"):
-                        raise RuntimeError(f"container {status}: {s.text[:200]}")
-                await asyncio.sleep(_POLL_INTERVAL_S)
-            if status != "FINISHED":
-                raise RuntimeError(f"container not ready (last={status})")
+            last_detail = ""
+            # 1~2) 컨테이너 생성 + 인코딩 폴링. 컨테이너 ERROR/타임아웃은 IG측 일시장애가 잦아 1회 재시도.
+            for attempt in range(_CONTAINER_MAX_ATTEMPTS):
+                r = await client.post(f"{base}/{acct}/media", data={**create_payload, "access_token": token})
+                if r.status_code >= 400:
+                    raise RuntimeError(f"graph create {r.status_code}: {r.text[:300]}")
+                creation_id = str(r.json().get("id") or "").strip()
+                if not creation_id:
+                    raise RuntimeError(f"no creation id: {r.text[:200]}")
+
+                status = ""
+                for _try in range(_POLL_MAX_TRIES):
+                    # status 필드까지 폴링 → 실패 시 IG 상세 사유(에러코드/메시지) 확보(진단·알림)
+                    s = await client.get(
+                        f"{base}/{creation_id}",
+                        params={"fields": "status_code,status", "access_token": token},
+                    )
+                    if s.status_code < 400:
+                        info = s.json()
+                        status = str(info.get("status_code") or "").upper()
+                        last_detail = str(info.get("status") or "")
+                        if status == "FINISHED":
+                            break
+                        if status in ("ERROR", "EXPIRED"):
+                            break
+                    await asyncio.sleep(_POLL_INTERVAL_S)
+
+                if status == "FINISHED":
+                    break
+                # ERROR/EXPIRED/타임아웃 — 마지막 시도가 아니면 컨테이너 재생성 후 재시도
+                if attempt < _CONTAINER_MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(_CONTAINER_RETRY_WAIT_S)
+                    continue
+                if status in ("ERROR", "EXPIRED"):
+                    raise RuntimeError(f"container {status}: {last_detail[:300] or s.text[:200]}")
+                raise RuntimeError(f"container not ready (last={status}): {last_detail[:200]}")
 
             # 3) 발행
             p = await client.post(
