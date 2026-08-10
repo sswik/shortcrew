@@ -101,6 +101,14 @@ async def _startup_ig_backfill_scheduler() -> None:
 
 
 @app.on_event("startup")
+async def _startup_ig_report_scheduler() -> None:
+    """인스타 일일 운영 리포트를 앱이 직접 디스코드로 발송(env 로 켜짐)."""
+    from app.admin.ops.services.ig_report_scheduler import start as _start_ig_report
+
+    _start_ig_report()
+
+
+@app.on_event("startup")
 async def _startup_ig_token_refresh() -> None:
     """IG 장기토큰 40일 주기 자동갱신(만료 근절, env 로 켜짐)."""
     from app.admin.ops.services.ig_token_refresh import start as _start_ig_token
