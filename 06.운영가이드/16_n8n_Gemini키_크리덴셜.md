@@ -68,13 +68,15 @@ curl -X POST "$N8N_API_URL/api/v1/credentials" -H "X-N8N-API-KEY: $N8N_API_KEY" 
 ## 모델 일괄 교체 (2026-08-12)
 
 라이브 104개를 훑어 Gemini 모델을 참조하는 **17개**를 찾아, `gemini-2.5-flash`·`gemini-2.0-flash`
-→ **`gemini-3.1-flash-lite`** 로 교체(16개 WF, 21개 노드). 앱의 `GEMINI_MODEL` 과 같은 모델이다.
+→ **`gemini-3.5-flash`** 로 교체(16개 WF, 21개 노드). 앱의 `GEMINI_MODEL` 과 같은 모델이다.
+(처음 3.1-flash-lite 로 넣었다가 flash 등급으로 상향. **`gemini-3.1-flash` 라는 id 는 없다** —
+3.1 계열은 lite/image/tts/pro 뿐이라, 3.1 급 flash 를 원하면 정식 flash 는 3.5 가 최저선이다.)
 
 - `gemini-2.0-flash` 는 **이미 API 목록에서 사라진 상태**였다(WF01 경쟁사모니터링, WF02 뉴스브리핑,
   WF03 텍스트to쇼츠 — 셋 다 비활성이라 장애로 드러나지 않았을 뿐, 돌렸으면 실패).
 - 활성 3개 포함: WF-AUTO-SCRIPT, WF-LF-QUIZ, WF201 정치쇼츠.
 - **AF01-쇼핑펌프-쇼츠(비활성)만 `gemini-2.5-pro` 로 남겨뒀다.** pro 계열은 정식 후속이 없고
   (`gemini-3.1-pro-preview` = 프리뷰, `gemini-pro-latest` = 자동이동 별칭) 선택이 필요하다.
-- 검증: 크리덴셜 + 신규 모델 조합을 임시 WF 로 실호출 → `modelVersion: gemini-3.1-flash-lite` 확인.
-- 품질 이슈가 보이면(롱폼 대본·팩트체크 등) 해당 노드만 `gemini-3.6-flash` 로 올리면 된다.
-  lite 는 flash 보다 한 단계 아래 등급이다.
+- 검증: 크리덴셜 + 신규 모델 조합을 임시 WF 로 실호출 → 정상 응답 확인. 앱은 평문·구조화 출력 양쪽 실호출 확인.
+- 비용은 2.5-flash 대비 오른다($0.30/$2.50 → $1.50/$9.00). 비용이 문제되면 가벼운 노드부터
+  `gemini-3.5-flash-lite`·`gemini-3.1-flash-lite` 로 내리면 된다.

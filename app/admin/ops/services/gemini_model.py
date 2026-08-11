@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import os
 
-# 2026-08 기준 정식판. 짧은 한국어 생성 + 구조화 출력 용도라 lite 로 충분하고,
-# 2.5-flash 보다 저렴하다($0.25/$1.50 vs $0.30/$2.50).
-DEFAULT_MODEL = "gemini-3.1-flash-lite"
+# 2026-08 기준 정식판 flash. `gemini-3.1-flash` 는 존재하지 않는다(3.1 계열은 lite/image/tts/pro 뿐).
+DEFAULT_MODEL = "gemini-3.5-flash"
 
 
 def gemini_model() -> str:
