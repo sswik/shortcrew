@@ -9,12 +9,22 @@
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from app.core.config import load_env
 
 _ROOT = Path(__file__).resolve().parent
 load_env()  # 다른 모듈이 os.environ(DATABASE_URL 등)을 읽기 전에 .env 로드
+
+# 내부 스케줄러(백필·리포트·큐레이션) 로그를 docker logs 로 내보낸다.
+# 이게 없으면 앱 로거의 INFO 가 어디에도 남지 않아 "어제 왜 실패했나"를 사후 추적할 수 없다.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+for _noisy in ("httpx", "httpcore", "urllib3"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse

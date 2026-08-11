@@ -15,6 +15,8 @@ import json
 
 from google import genai
 from google.genai import types
+
+from app.admin.ops.services.gemini_model import gemini_model
 from pydantic import BaseModel, Field
 
 
@@ -101,7 +103,7 @@ async def generate_shorts_script(
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model=gemini_model(),
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=(

@@ -6,7 +6,10 @@ import json
 
 from google import genai
 from google.genai import types
+
 from pydantic import BaseModel, Field
+
+from app.admin.ops.services.gemini_model import gemini_model
 
 
 class ReviewDraftResult(BaseModel):
@@ -48,7 +51,7 @@ async def generate_review_draft(
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model=gemini_model(),
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=(

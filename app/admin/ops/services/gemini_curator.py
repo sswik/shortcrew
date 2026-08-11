@@ -1,4 +1,7 @@
-"""Gemini 2.5 Flash를 활용한 트렌드 큐레이션 엔진 (구조화된 출력 적용)."""
+"""Gemini 를 활용한 트렌드 큐레이션 엔진 (구조화된 출력 적용).
+
+모델명은 `gemini_model.py` 한 곳에서 읽는다(교체는 env `GEMINI_MODEL`).
+"""
 from __future__ import annotations
 import asyncio
 import json
@@ -6,6 +9,8 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 from google.genai import errors as genai_errors
+
+from app.admin.ops.services.gemini_model import gemini_model
 
 # 일시적 서버 오류(503 UNAVAILABLE 등) 대비 지수 백오프 재시도 설정.
 # Gemini 과부하(503)는 대개 순간적이라 몇 초 뒤 재시도로 대부분 흡수된다.
@@ -78,7 +83,7 @@ async def curate_keywords_with_gemini(
         # 비동기(aio) 방식으로 Gemini 2.5 Flash 호출
         response = await _generate_with_retry(
             client,
-            model='gemini-2.5-flash',
+            model=gemini_model(),
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
@@ -147,7 +152,7 @@ async def pick_product_for_topic(
 
     response = await _generate_with_retry(
             client,
-        model="gemini-2.5-flash",
+        model=gemini_model(),
         contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
@@ -187,7 +192,7 @@ async def generate_dm_message(
     )
     response = await _generate_with_retry(
             client,
-        model="gemini-2.5-flash",
+        model=gemini_model(),
         contents=prompt,
         config=types.GenerateContentConfig(temperature=temperature),
     )
@@ -214,7 +219,7 @@ async def derive_dm_keyword(product_title: str, api_key: str) -> str:
     try:
         client = genai.Client(api_key=api_key)
         resp = await _generate_with_retry(
-            client, model="gemini-2.5-flash", contents=prompt,
+            client, model=gemini_model(), contents=prompt,
             config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=200),
         )
         raw = (resp.text or "").strip()

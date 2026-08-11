@@ -299,51 +299,81 @@ async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int, done_statu
     return None
 
 
+async def _publish_one(cid: str, cap: int, min_age: int, dry_run: bool) -> tuple[str, str]:
+    """채널 1건 처리. ('published'|'skipped'|'error', 상세) 반환(예외 안 냄)."""
+    from app.admin.ops.services.youtube_ig_bridge import publish_reel_to_ig
+
+    if _posted_today(cid) >= cap:
+        return "skipped", "cap"
+    doc = _video_sheet_id(cid)
+    if not doc:
+        return "skipped", "no-sheet-id"
+    try:
+        pick = await _pick_pending(cid, doc, _channel_tab(cid), min_age, _done_status(cid))
+    except Exception as e:
+        return "error", f"pick:{str(e)[:80]}"
+    if not pick:
+        return "skipped", "no-pending"
+    vurl = f"https://drive.google.com/uc?export=download&id={pick['drive_id']}"
+    try:
+        res = await publish_reel_to_ig(
+            channel_id=cid, video_url=vurl, caption=pick["caption"],
+            share_to_feed=True, dry_run=dry_run,
+        )
+        if dry_run:
+            return "published", f"DRY row{pick['row']} {pick['drive_id'][:12]}"
+        mid = str(res.get("media_id") or "").strip()
+        if not mid:
+            return "error", "no-media-id"
+    except Exception as e:
+        return "error", str(e)[:100]
+
+    # 여기부터는 IG 발행이 이미 끝난 상태 — 실패해도 'error'로 두면 재시도가 같은 영상을
+    # 두 번 올린다. 시트 기록 실패는 published 로 반환하고 경고만 남긴다(수동 보정 대상).
+    try:
+        # ig_media_id 되씀 → 영구 중복차단
+        await _write_cell(doc, _channel_tab(cid), f"{pick['ig_col']}{pick['row']}", mid)
+    except Exception as e:
+        _bump_today(cid)
+        logger.warning("ig_backfill %s: 발행됐으나 시트기록 실패 row=%s media=%s (%s) — "
+                       "%s%s 에 수동 기록 필요", cid, pick["row"], mid, str(e)[:80],
+                       pick["ig_col"], pick["row"])
+        return "published", f"row{pick['row']} media={mid} SHEET-WRITE-FAILED"
+    _bump_today(cid)
+    return "published", f"row{pick['row']} media={mid}"
+
+
 async def run_backfill_once(*, dry_run: bool = False) -> dict:
-    """모든 슬롯 공통 1패스: 대상 채널을 돌며 계정별 상한 안에서 1건씩 발행."""
+    """모든 슬롯 공통 1패스: 대상 채널을 돌며 계정별 상한 안에서 1건씩 발행.
+
+    실패 채널은 패스 끝에서 1회 재시도한다(IG 인코딩/Drive 전송 일시장애가 잦고,
+    23:30 은 그날 마지막 슬롯이라 재시도가 없으면 하루치가 통째로 밀린다).
+    """
     cap = effective_cap()
     min_age = _int_env("IG_BACKFILL_MIN_AGE_HOURS", 48)
-    from app.admin.ops.services.youtube_ig_bridge import publish_reel_to_ig
 
     published, skipped, errors = [], [], []
     for cid in _channels():
-        if _posted_today(cid) >= cap:
-            skipped.append((cid, "cap"))
-            continue
-        doc = _video_sheet_id(cid)
-        if not doc:
-            skipped.append((cid, "no-sheet-id"))
-            continue
-        try:
-            pick = await _pick_pending(cid, doc, _channel_tab(cid), min_age, _done_status(cid))
-        except Exception as e:
-            errors.append((cid, f"pick:{str(e)[:80]}"))
-            continue
-        if not pick:
-            skipped.append((cid, "no-pending"))
-            continue
-        vurl = f"https://drive.google.com/uc?export=download&id={pick['drive_id']}"
-        try:
-            res = await publish_reel_to_ig(
-                channel_id=cid, video_url=vurl, caption=pick["caption"],
-                share_to_feed=True, dry_run=dry_run,
-            )
-            if dry_run:
-                published.append((cid, f"DRY row{pick['row']} {pick['drive_id'][:12]}"))
-                continue
-            mid = str(res.get("media_id") or "").strip()
-            if not mid:
-                errors.append((cid, "no-media-id"))
-                continue
-            # ig_media_id 되씀 → 영구 중복차단
-            await _write_cell(doc, _channel_tab(cid), f"{pick['ig_col']}{pick['row']}", mid)
-            _bump_today(cid)
-            published.append((cid, f"row{pick['row']} media={mid}"))
-        except Exception as e:
-            errors.append((cid, str(e)[:100]))
+        kind, detail = await _publish_one(cid, cap, min_age, dry_run)
+        {"published": published, "skipped": skipped, "errors": errors}[kind].append((cid, detail))
 
-    logger.info("ig_backfill pass done cap=%s pub=%d skip=%d err=%d",
-                cap, len(published), len(skipped), len(errors))
+    # 실패분 1회 재시도 — 대개 여기서 붙는다.
+    if errors and not dry_run:
+        retry, errors = errors, []
+        logger.warning("ig_backfill 실패 %d채널 재시도: %s", len(retry), [c for c, _ in retry])
+        await asyncio.sleep(_int_env("IG_BACKFILL_RETRY_WAIT_S", 30))
+        for cid, first_err in retry:
+            kind, detail = await _publish_one(cid, cap, min_age, dry_run)
+            if kind == "published":
+                published.append((cid, f"retry {detail}"))
+            elif kind == "skipped":
+                skipped.append((cid, f"retry {detail}"))
+            else:
+                errors.append((cid, f"{first_err} | retry:{detail}"))
+
+    log = logger.warning if errors else logger.info
+    log("ig_backfill pass done cap=%s pub=%d skip=%d err=%d%s", cap, len(published),
+        len(skipped), len(errors), (" " + repr(errors)) if errors else "")
     return {"cap": cap, "dry_run": dry_run, "published": published,
             "skipped": skipped, "errors": errors}
 
