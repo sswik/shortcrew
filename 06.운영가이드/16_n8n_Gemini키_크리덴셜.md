@@ -65,5 +65,16 @@ curl -X POST "$N8N_API_URL/api/v1/credentials" -H "X-N8N-API-KEY: $N8N_API_KEY" 
 - 운영 WF 를 PUT 으로 고치기 전에 **원본을 파일로 백업**한다. PUT 은 전체 덮어쓰기다.
 - `n8n/live-export/` 의 사본은 시점 스냅샷이라 **활성 여부·노드 상태가 라이브와 다를 수 있다**.
   판단은 항상 API 로 받은 라이브 정의 기준.
-- 이 워크플로우들은 아직 `gemini-2.5-flash` 를 호출한다. 앱(`GEMINI_MODEL`)은 3.1-flash-lite 로
-  옮겼으므로, 2.5 종료 전에 n8n 쪽 URL 모델명도 함께 교체해야 한다.
+## 모델 일괄 교체 (2026-08-12)
+
+라이브 104개를 훑어 Gemini 모델을 참조하는 **17개**를 찾아, `gemini-2.5-flash`·`gemini-2.0-flash`
+→ **`gemini-3.1-flash-lite`** 로 교체(16개 WF, 21개 노드). 앱의 `GEMINI_MODEL` 과 같은 모델이다.
+
+- `gemini-2.0-flash` 는 **이미 API 목록에서 사라진 상태**였다(WF01 경쟁사모니터링, WF02 뉴스브리핑,
+  WF03 텍스트to쇼츠 — 셋 다 비활성이라 장애로 드러나지 않았을 뿐, 돌렸으면 실패).
+- 활성 3개 포함: WF-AUTO-SCRIPT, WF-LF-QUIZ, WF201 정치쇼츠.
+- **AF01-쇼핑펌프-쇼츠(비활성)만 `gemini-2.5-pro` 로 남겨뒀다.** pro 계열은 정식 후속이 없고
+  (`gemini-3.1-pro-preview` = 프리뷰, `gemini-pro-latest` = 자동이동 별칭) 선택이 필요하다.
+- 검증: 크리덴셜 + 신규 모델 조합을 임시 WF 로 실호출 → `modelVersion: gemini-3.1-flash-lite` 확인.
+- 품질 이슈가 보이면(롱폼 대본·팩트체크 등) 해당 노드만 `gemini-3.6-flash` 로 올리면 된다.
+  lite 는 flash 보다 한 단계 아래 등급이다.
