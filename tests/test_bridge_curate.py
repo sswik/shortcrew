@@ -109,8 +109,11 @@ class TestBridgeCurate(unittest.TestCase):
             self.assertEqual(self._post({"channel_id": "999"}).status_code, 404)
 
     def test_no_topics_uses_trend_keywords(self) -> None:
-        # 주제 미지정이면 채널 trend_keywords 를 주제로 사용(확장 기본)
-        with mock.patch.object(bridge.coupang, "search_products", _fake_search), \
+        # 주제 미지정이면 채널 trend_keywords 를 주제로 사용(확장 기본).
+        # `_rotate_window` 는 day-of-year 로 슬라이스를 회전시켜, 고정하지 않으면
+        # '홈캠'이 창 밖으로 밀리는 날 이 테스트가 날짜 때문에 깨진다 → 앞 size개로 고정.
+        with mock.patch.object(bridge, "_rotate_window", lambda seq, size: seq[:size]), \
+                mock.patch.object(bridge.coupang, "search_products", _fake_search), \
                 mock.patch.object(bridge.gemini_curator, "pick_product_for_topic", _fake_pick), \
                 mock.patch.object(bridge.coupang, "generate_deeplinks", _fake_deeplinks):
             r = self._post({"channel_id": "05", "dry_run": True})
