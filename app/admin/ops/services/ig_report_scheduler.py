@@ -114,11 +114,21 @@ def report_channels() -> list[str]:
 
 
 def _channel_name(cid: str) -> str:
+    """표시명. 로스터 → env `CHANNEL_{id}_NAME` → IG username → id 순 폴백.
+
+    로스터(`channels/roster`)에 없는 채널도 IG 계정만 있으면 리포트에 잡히므로
+    (예: 100 에이전트PM) id 만 찍히지 않게 폴백을 둔다.
+    """
     from app.admin.ops.channels import get_channels
+    from app.admin.ops.channels.env_names import channel_env
 
     for ch in get_channels():
         if str(ch.get("channel_id") or "").strip() == cid:
             return str(ch.get("name") or cid)
+    for key in ("NAME", "IG_USERNAME"):
+        v = os.environ.get(channel_env(cid, key), "").strip()
+        if v:
+            return v
     return cid
 
 
