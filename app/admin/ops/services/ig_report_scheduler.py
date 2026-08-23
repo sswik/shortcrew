@@ -336,18 +336,32 @@ def _build_message(rows: list[dict], since: datetime, now: datetime, prev: dict)
     if not alerts and not broken:
         top_block += nl + "전 채널 이상 없음"
 
-    # 디스코드 2000자 한도 — 채널 목록부터 잘라낸다(경보/상위릴스가 더 중요).
-    budget = 1900 - len(head) - len(alert_block) - len(top_block)
-    if len(body) > budget:
-        kept, used = [], 0
-        for line in body.split(nl):
-            if used + len(line) + 1 > budget - 20:
-                kept.append(f"... 외 {len(lines) - len(kept)}개 채널 생략")
-                break
-            kept.append(line)
-            used += len(line) + 1
-        body = nl.join(kept) + nl
+    # 길이 제한으로 채널을 잘라내지 않는다 — 전 채널을 다 보여주고, 넘치면 여러 메시지로 나눈다.
     return head + body + alert_block + top_block
+
+
+def _split_for_discord(text: str, limit: int = 1900) -> list[str]:
+    """디스코드 2000자 한도에 맞춰 **줄 단위**로 쪼갠다(채널 생략 금지).
+
+    한 줄이 limit 을 넘는 비정상 케이스만 강제로 자른다.
+    """
+    chunks: list[str] = []
+    cur = ""
+    for line in text.split("\n"):
+        while len(line) > limit:                      # 비정상적으로 긴 한 줄
+            if cur:
+                chunks.append(cur)
+                cur = ""
+            chunks.append(line[:limit])
+            line = line[limit:]
+        if len(cur) + len(line) + 1 > limit:
+            chunks.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    if cur:
+        chunks.append(cur)
+    return chunks or [""]
 
 
 async def run_report_once(*, dry_run: bool = False) -> dict:
@@ -372,7 +386,14 @@ async def run_report_once(*, dry_run: bool = False) -> dict:
         from app.admin.ops.services.discord_notify import notify
 
         webhook_env = (os.environ.get("IG_REPORT_WEBHOOK_ENV") or "DISCORD_WEBHOOK_IG").strip()
-        sent = await notify(content, env_key=webhook_env)
+        parts = _split_for_discord(content)
+        sent = True
+        for i, part in enumerate(parts, 1):
+            tag = f"  ({i}/{len(parts)})" if len(parts) > 1 else ""
+            ok = await notify(part + tag, env_key=webhook_env)
+            sent = sent and ok
+            if i < len(parts):
+                await asyncio.sleep(1.0)  # 디스코드 레이트리밋 여유
         # 팔로워 스냅샷은 전송 성공 여부와 무관하게 갱신(증감 기준선 유지)
         snap = {
             r["cid"]: {"followers": r.get("followers") or 0, "at": now.isoformat()}
