@@ -13,7 +13,7 @@ n8n 과 꼬이지 않는 이유
 - IG 발행은 컨테이너 내부 `publish_reel_to_ig` 직접 호출(HTTP 엔드포인트 경합 없음).
 
 중복 방지(airtight)
-- `상태=현지화완료` AND `ig_media_id 비어있음` AND `drive_video_id 존재` 인 행만 대상.
+- `상태∈완성집합(현지화완료·업로드완료)` AND `ig_media_id 비어있음` AND `drive_video_id 존재` 인 행만 대상.
 - 오래된 순(No 오름차순)으로 집고, 발행 성공 시 응답 media_id 를 **ig_media_id 열에 되씀**.
 - `업로드일시`가 MIN_AGE_HOURS 이내면 스킵 → 당일 신규발행분과 안 겹침.
 - 컬럼 위치는 채널마다 다를 수 있어(예: tech 는 ig_media_id=S) **헤더명 기반**으로 해석.
@@ -29,6 +29,9 @@ env
 - IG_BACKFILL_START_DATE    : 워밍업 기준 시작일 YYYY-MM-DD(미설정 시 워밍업 무시=바로 정상캡)
 - IG_BACKFILL_MIN_AGE_HOURS : 이 시간 안에 업로드된 영상은 제외(기본 48)
 - IG_BACKFILL_VIDEO_TAB     : 영상시트 탭명(기본 "시트1")
+- IG_BACKFILL_DONE_STATUS   : 완성으로 인정할 상태값(쉼표구분, 기본 "현지화완료,업로드완료")
+- CHANNEL_{id}_DONE_STATUS  : 채널별 완성 상태값 오버라이드
+- IG_BACKFILL_ONLY_BEFORE   : 이 날짜 이후 업로드분 제외(미설정=제한 없음)
 """
 from __future__ import annotations
 
@@ -52,7 +55,9 @@ _H_IGMEDIA = "ig_media_id"
 _H_TITLE = "제목"
 _H_DESC = "등록설명"
 _H_UPLOADED = "업로드일시"
-_DONE_STATUS = "현지화완료"
+# 완성 상태값. 구 n8n 파이프라인은 업로드완료 → 현지화완료 까지 진행했고,
+# 신 파이프라인(볼케이노 run_daily.sh)은 업로드완료 에서 끝난다 → 둘 다 완성으로 본다.
+_DONE_STATUS = "현지화완료,업로드완료"
 
 # 계정별 당일 발행 카운트를 파일에 지속화(마운트된 logs 볼륨) → 컨테이너 재시작에도 안전.
 # {channel_id: {"date": "YYYY-MM-DD", "n": int}}
@@ -118,14 +123,20 @@ def _channel_tab(cid: str) -> str:
     return v.strip() if v and v.strip() else _tab()
 
 
-def _done_status(cid: str) -> str:
-    """채널별 '완성' 상태값. 기본 현지화완료, homecam(05)은 업로드완료 등."""
+def _done_statuses(cid: str) -> set[str]:
+    """채널별 '완성' 상태값 집합. 쉼표/공백으로 여러 개 지정 가능.
+
+    한 채널의 시트에 구·신 파이프라인이 남긴 상태가 섞여 있어(현지화완료 / 업로드완료)
+    하나만 인정하면 한쪽 재고가 통째로 누락된다. 그래서 집합으로 비교한다.
+    우선순위: CHANNEL_{id}_DONE_STATUS → IG_BACKFILL_DONE_STATUS → 기본값.
+    """
     from app.admin.ops.channels.env_names import channel_env
 
-    v = os.environ.get(channel_env(cid, "DONE_STATUS"))
-    if v and v.strip():
-        return v.strip()
-    return (os.environ.get("IG_BACKFILL_DONE_STATUS") or _DONE_STATUS).strip() or _DONE_STATUS
+    raw = (os.environ.get(channel_env(cid, "DONE_STATUS")) or "").strip()
+    if not raw:
+        raw = (os.environ.get("IG_BACKFILL_DONE_STATUS") or "").strip() or _DONE_STATUS
+    out = {t.strip() for t in raw.replace(",", " ").split() if t.strip()}
+    return out or {"현지화완료"}
 
 
 def effective_cap() -> int:
@@ -250,11 +261,14 @@ def _parse_uploaded(val: str) -> datetime | None:
     return None
 
 
-async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int, done_status: str) -> dict | None:
+async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int,
+                        done_status: set[str] | str) -> dict | None:
     """오래된 순으로 백필 대상 1건 선택(없으면 None). 헤더명 기반 컬럼 해석.
 
-    done_status: '완성' 상태값(채널별). 설명열은 등록설명/설명 중 있는 것 사용(homecam=설명).
+    done_status: '완성'으로 인정할 상태값(집합 또는 단일 문자열).
+    설명열은 등록설명/설명 중 있는 것 사용(homecam=설명).
     """
+    done = {done_status} if isinstance(done_status, str) else set(done_status)
     grid = await _read_grid(doc, tab)
     if not grid:
         return None
@@ -276,7 +290,7 @@ async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int, done_statu
         def cell(i: int) -> str:
             return row[i].strip() if 0 <= i < len(row) and row[i] is not None else ""
 
-        if cell(i_st) != done_status:
+        if cell(i_st) not in done:
             continue
         if not cell(i_dv):
             continue
@@ -309,7 +323,7 @@ async def _publish_one(cid: str, cap: int, min_age: int, dry_run: bool) -> tuple
     if not doc:
         return "skipped", "no-sheet-id"
     try:
-        pick = await _pick_pending(cid, doc, _channel_tab(cid), min_age, _done_status(cid))
+        pick = await _pick_pending(cid, doc, _channel_tab(cid), min_age, _done_statuses(cid))
     except Exception as e:
         return "error", f"pick:{str(e)[:80]}"
     if not pick:
