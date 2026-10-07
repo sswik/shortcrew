@@ -32,6 +32,9 @@ env
 - IG_BACKFILL_DONE_STATUS   : 완성으로 인정할 상태값(쉼표구분, 기본 "현지화완료,업로드완료")
 - CHANNEL_{id}_DONE_STATUS  : 채널별 완성 상태값 오버라이드
 - IG_BACKFILL_ONLY_BEFORE   : 이 날짜 이후 업로드분 제외(미설정=제한 없음)
+- IG_BACKFILL_MAX_BYTES     : Drive 영상 크기 상한(기본 104857600=100MB, 0이면 가드 끔).
+                              초과분은 `ig_media_id` 에 `SKIP-oversize-{N}MB` 를 남기고 건너뛴다
+                              (Drive 가 100MB 초과에 확인 HTML 을 끼워 IG 컨테이너가 ERROR 가 됨).
 """
 from __future__ import annotations
 
@@ -196,6 +199,46 @@ async def _token() -> str:
     return await asyncio.to_thread(_get_access_token_from_keyfile)
 
 
+_DRIVE_BASE = "https://www.googleapis.com/drive/v3/files"
+# Drive 는 이 크기를 넘으면 `uc?export=download` 에 바이러스검사 확인 HTML 을 끼운다.
+# → IG 가 영상 대신 HTML 을 받아 컨테이너 생성이 ERROR 로 끝난다(채널20 No=55, 134.7MB 사례).
+_MAX_BYTES_DEFAULT = 100 * 1024 * 1024
+
+
+async def _drive_token() -> str:
+    """Drive 메타데이터 조회용 토큰. 시트용 토큰은 spreadsheets 스코프라 Drive 에 못 쓴다."""
+    def _mk() -> str:
+        from google.auth.transport.requests import Request
+        from google.oauth2 import service_account
+
+        from app.admin.ops.services.google_sheets import _KEY_FILE
+
+        cred = service_account.Credentials.from_service_account_file(
+            str(_KEY_FILE), scopes=["https://www.googleapis.com/auth/drive.metadata.readonly"]
+        )
+        cred.refresh(Request())
+        return str(cred.token or "")
+
+    return await asyncio.to_thread(_mk)
+
+
+async def _drive_size(file_id: str) -> int | None:
+    """Drive 파일 바이트 크기. 조회 실패는 None(= 크기 가드를 건너뛰고 평소대로 발행 시도)."""
+    try:
+        token = await _drive_token()
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.get(
+                f"{_DRIVE_BASE}/{file_id}",
+                params={"fields": "size", "supportsAllDrives": "true"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            r.raise_for_status()
+            return int((r.json() or {}).get("size") or 0) or None
+    except Exception as e:
+        logger.warning("ig_backfill: drive size 조회 실패 %s (%s)", file_id, str(e)[:80])
+        return None
+
+
 async def _read_grid(doc: str, tab: str) -> list[list[str]]:
     tok = await _token()
     rng = f"'{tab}'!A1:AZ4000" if (" " in tab) else f"{tab}!A1:AZ4000"
@@ -262,7 +305,7 @@ def _parse_uploaded(val: str) -> datetime | None:
 
 
 async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int,
-                        done_status: set[str] | str) -> dict | None:
+                        done_status: set[str] | str, dry_run: bool = False) -> dict | None:
     """오래된 순으로 백필 대상 1건 선택(없으면 None). 헤더명 기반 컬럼 해석.
 
     done_status: '완성'으로 인정할 상태값(집합 또는 단일 문자열).
@@ -301,6 +344,25 @@ async def _pick_pending(cid: str, doc: str, tab: str, min_age_h: int,
             continue  # 너무 최근 영상 → 당일 신규분과 충돌 방지
         if only_before and up and up >= only_before:
             continue  # 인라인 크로스포스트가 처리하는 신규분 → 백필 제외(이중발행 방지)
+        # 크기 가드: 한도 초과분은 발행해도 반드시 실패하고, 오래된순 선택이라 매 슬롯 같은 행을
+        # 집어 채널이 영구히 막힌다(선두 차단). 스킵표시를 남겨 다음 행으로 넘어간다.
+        # 재인코딩 후 되살리려면 해당 ig_media_id 셀을 비우면 된다.
+        max_bytes = _int_env("IG_BACKFILL_MAX_BYTES", _MAX_BYTES_DEFAULT)
+        if max_bytes > 0:
+            size = await _drive_size(cell(i_dv))
+            if size and size > max_bytes:
+                mb = size // (1024 * 1024)
+                note = f"SKIP-oversize-{mb}MB"
+                logger.warning("ig_backfill %s: row%s %sMB > 한도 %sMB → %s (재인코딩 후 셀 비우면 재시도)",
+                               cid, r, mb, max_bytes // (1024 * 1024), note)
+                if not dry_run:
+                    try:
+                        await _write_cell(doc, tab, f"{_col_letter(i_ig)}{r}", note)
+                    except Exception as e:
+                        logger.warning("ig_backfill %s: 스킵표시 기록 실패 row=%s (%s)",
+                                       cid, r, str(e)[:80])
+                continue
+
         title = cell(i_ti) if i_ti >= 0 else ""
         desc = cell(i_de) if i_de >= 0 else ""
         caption = (title + "\n\n" + desc).strip()[:2100]
@@ -323,7 +385,7 @@ async def _publish_one(cid: str, cap: int, min_age: int, dry_run: bool) -> tuple
     if not doc:
         return "skipped", "no-sheet-id"
     try:
-        pick = await _pick_pending(cid, doc, _channel_tab(cid), min_age, _done_statuses(cid))
+        pick = await _pick_pending(cid, doc, _channel_tab(cid), min_age, _done_statuses(cid), dry_run)
     except Exception as e:
         return "error", f"pick:{str(e)[:80]}"
     if not pick:
@@ -367,9 +429,19 @@ async def run_backfill_once(*, dry_run: bool = False) -> dict:
     min_age = _int_env("IG_BACKFILL_MIN_AGE_HOURS", 48)
 
     published, skipped, errors = [], [], []
+    # `_publish_one` 은 'error'(단수)를 반환한다 → 버킷명('errors')과 달라서 과거 KeyError 로
+    # 패스가 통째로 중단됐다(한 채널 실패 = 뒤 채널 전부 미발행 + 재시도 미작동). 매핑으로 고정하고,
+    # 모르는 kind 는 errors 로 떨군다(다시 전체를 죽이지 않게).
+    buckets = {"published": published, "skipped": skipped, "error": errors, "errors": errors}
     for cid in _channels():
-        kind, detail = await _publish_one(cid, cap, min_age, dry_run)
-        {"published": published, "skipped": skipped, "errors": errors}[kind].append((cid, detail))
+        try:
+            kind, detail = await _publish_one(cid, cap, min_age, dry_run)
+        except Exception as e:  # _publish_one 은 예외를 안 내지만, 방어적으로 채널 단위 격리
+            kind, detail = "error", f"unhandled:{type(e).__name__}: {e}"[:120]
+        if kind not in buckets:
+            logger.warning("ig_backfill %s: 알 수 없는 kind=%r detail=%s", cid, kind, detail)
+            kind = "error"
+        buckets[kind].append((cid, detail))
 
     # 실패분 1회 재시도 — 대개 여기서 붙는다.
     if errors and not dry_run:
