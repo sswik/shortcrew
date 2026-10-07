@@ -168,6 +168,27 @@ def _token_days_left(cid: str) -> int | None:
     return int(left.total_seconds() // 86400)
 
 
+def _err_text(e: Exception) -> str:
+    """Graph 에러를 사람이 읽을 수 있게. httpx 예외 문자열은 URL 만 남아 원인이 안 보인다.
+
+    HTTPStatusError 면 응답 본문의 `error.code`/`error.message` 를 꺼낸다
+    (예: `190 세션무효: The session has been invalidated ...`).
+    code 190 은 비밀번호 변경·Meta 보안초기화로 토큰이 죽은 것 → refresh 불가, 재로그인 필요.
+    """
+    if isinstance(e, httpx.HTTPStatusError):
+        try:
+            err = (e.response.json() or {}).get("error") or {}
+        except ValueError:
+            err = {}
+        code = err.get("code")
+        msg = str(err.get("message") or "").strip()
+        if code or msg:
+            hint = " 세션무효(재로그인 필요)" if code == 190 else ""
+            return f"{code}{hint}: {msg}"[:200]
+        return f"HTTP {e.response.status_code}"
+    return f"{type(e).__name__}: {e}"[:200]
+
+
 async def _get(client: httpx.AsyncClient, path: str, token: str, **params) -> dict:
     params["access_token"] = token
     resp = await client.get(f"{_graph_base()}/{path}", params=params, timeout=25.0)
@@ -217,7 +238,7 @@ async def _collect_channel(client: httpx.AsyncClient, cid: str, since: datetime)
         row["username"] = str(me.get("username") or "")
         row["followers"] = int(me.get("followers_count") or 0)
     except Exception as e:
-        row["error"] = f"계정조회 {str(e)[:60]}"
+        row["error"] = f"계정조회 {_err_text(e)}"
         return row
 
     try:
@@ -227,7 +248,7 @@ async def _collect_channel(client: httpx.AsyncClient, cid: str, since: datetime)
         )
         row.update(_insight_values(ins))
     except Exception as e:
-        row["insight_error"] = str(e)[:60]
+        row["insight_error"] = _err_text(e)
 
     try:
         media = await _get(
@@ -236,7 +257,7 @@ async def _collect_channel(client: httpx.AsyncClient, cid: str, since: datetime)
             limit=25,
         )
     except Exception as e:
-        row["media_error"] = str(e)[:60]
+        row["media_error"] = _err_text(e)
         return row
 
     fresh = []
@@ -376,7 +397,7 @@ async def run_report_once(*, dry_run: bool = False) -> dict:
             try:
                 rows.append(await _collect_channel(client, cid, since))
             except Exception as e:  # 채널 하나가 리포트 전체를 죽이지 않게
-                rows.append({"cid": cid, "name": _channel_name(cid), "error": str(e)[:60]})
+                rows.append({"cid": cid, "name": _channel_name(cid), "error": _err_text(e)})
 
     prev = _load_state()
     content = _build_message(rows, since, now, prev)
