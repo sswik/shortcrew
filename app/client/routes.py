@@ -163,6 +163,15 @@ def _public_slug_is_reserved(slug: str) -> bool:
     return s in _RESERVED_PUBLIC_SLUGS
 
 
+def _readable_on(hex_color: str) -> str:
+    """배경색 위에서 읽히는 글자색(검정/흰색) — 상단 쿠팡 고지 바(accent 배경)용."""
+    h = (hex_color or "").lstrip("#")
+    if len(h) != 6:
+        return "#111111"
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return "#111111" if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5 else "#FFFFFF"
+
+
 def _pump_hub_page(request: Request, *, pump: Pump, hub_tab: str) -> HTMLResponse:
     if hub_tab not in _HUB_TABS:
         hub_tab = "products"
@@ -199,6 +208,7 @@ def _pump_hub_page(request: Request, *, pump: Pump, hub_tab: str) -> HTMLRespons
     ctx = {
         "pump": pump,
         "kupas_mode": kupas_mode,
+        "mall_notice_fg": _readable_on(mall_theme.get("accent", "")),
         "shop_page_config": shop_page_config,
         "hub_tab": hub_tab,
         "mall_theme": mall_theme,

@@ -3,8 +3,9 @@
 쿠파스 쇼츠는 영상 끝에서 「프로필 링크 N번」이라고 말한다. 그래서 이 채널들의 몰은
 번호를 **시트 A열(No) 그대로** 써야 한다(시트 순서 번호로는 빈 번호·중복을 못 맞춘다).
 
-대상 채널은 env `MALL_KUPAS_CHANNELS`(쉼표·공백 구분). 키가 없으면 기본 5개 채널,
-빈 값이면 기능 전체 꺼짐(= 기존 Apps Script 경로로 복귀).
+대상 채널은 env `MALL_KUPAS_CHANNELS`(쉼표·공백 구분, `all` = 전 채널). 키가 없으면 전 채널,
+빈 값이면 기능 전체 꺼짐(= 기존 Apps Script 경로·기존 디자인으로 복귀).
+2026-10-09 34채널 전수 대조: 시트 직접 읽기 결과가 Apps Script 응답과 모두 일치.
 
 시트 상품탭 열(기존 A~K + 쿠파스 L~Q)
   A No · B 카테고리 · C 상품명 · D 가격 · E 이미지 · F 쿠팡URL · G 딥링크 · H 연관영상
@@ -26,7 +27,7 @@ from datetime import datetime, timezone
 
 KUPAS_SECTION = "쿠파스"
 KUPAS_COLUMNS = ("평점", "상품평수", "특징", "수집일", "공개시각", "구분")  # L~Q 헤더
-_DEFAULT_CHANNELS = "02,03,15,31,35"
+_DEFAULT_CHANNELS = "all"
 _FEATURE_SPLIT = re.compile(r"\s*[·|]\s*")
 _YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")  # H열이 유튜브 영상 ID 일 때만 «영상 보기» 링크
 
@@ -39,7 +40,9 @@ def kupas_channels() -> set[str]:
 
 
 def is_kupas_channel(channel_id: str) -> bool:
-    return (channel_id or "").strip() in kupas_channels()
+    cid = (channel_id or "").strip()
+    chans = kupas_channels()
+    return bool(cid) and ("all" in chans or cid in chans)
 
 
 def quoted_range(tab: str, a1: str) -> str:

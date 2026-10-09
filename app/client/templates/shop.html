@@ -16,6 +16,7 @@
         --mall-theme-text-sub: {{ t.textSub | e }};
         --mall-theme-border: {{ t.border | e }};
         --tap-accent: {{ mall_theme_tap | e }};
+        --mall-notice-fg: {{ (mall_notice_fg or '#111111') | e }};
     }
 
     /* PC 접속이어도 모바일 셸 내부 상품 리스트는 1열 고정 */
@@ -151,7 +152,11 @@
 {% endif %}
 {% endblock %}
 
-{% block body_extra %} class="is-mall-public"{% endblock %}
+{% block body_extra %} class="is-mall-public{% if kupas_mode %} is-mall-kupas{% endif %}"{% endblock %}
+
+{# 쿠파스(번호 카드) 몰: 상단 고지 고정 + 숏크루 로고 헤더 제거. (block 은 if 로 감쌀 수 없어 안쪽에서 분기) #}
+{% block top_notice %}{% if kupas_mode %}<div class="mall-notice" role="note">이 페이지는 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>{% else %}{{ super() }}{% endif %}{% endblock %}
+{% block site_header %}{% if not kupas_mode %}{{ super() }}{% endif %}{% endblock %}
 
 {% block main_extra_class %} page-body--mall{% endblock %}
 
@@ -177,6 +182,15 @@
 <div class="shop-page shop-page--mobile{% if kupas_mode %} shop-page--kupas{% endif %}">
     <div class="shop-mobile-shell">
         <div class="shop-mobile-sticky">
+            {% if kupas_mode %}
+            {% set tagline = ((pump.bio or '').strip().splitlines() or [''])[0] | replace('"', '') | trim %}
+            <div class="shop-mobile-top shop-mobile-top--kupas">
+                <div class="shop-mobile-top__text">
+                    <h1 class="shop-mobile-top__title">{{ pump.display_name | e }}</h1>
+                    {% if tagline %}<p class="shop-mobile-top__sub">{{ tagline | e }}</p>{% endif %}
+                </div>
+            </div>
+            {% else %}
             <div class="shop-mobile-top">
                 <img
                     class="shop-mobile-top__avatar"
@@ -191,6 +205,7 @@
                     <p class="shop-mobile-top__sub">/{{ pump.name_slug | e }}</p>
                 </div>
             </div>
+            {% endif %}
             <div class="shop-tabs{% if kupas_mode %} shop-tabs--row{% endif %}" data-shop-tabs data-shop-public-slug="{{ pump.name_slug | e }}" data-initial-tab="{{ ht | e }}">
                 <div class="shop-tabs__list" role="tablist" aria-label="몰 메뉴">
                     <a
@@ -224,7 +239,7 @@
                         {% if ht != 'channel' %}tabindex="-1"{% endif %}
                         >소개</a>
                 </div>
-                {% if kupas_mode and ht == 'products' %}{{ search_box("상품명 또는 번호 검색") }}{% endif %}
+                {% if kupas_mode and ht == 'products' %}{{ search_box("상품명·번호 검색") }}{% endif %}
             </div>
         </div>
 
@@ -373,5 +388,5 @@
     })();
 </script>
 <script src="/static/js/shop-tabs.js" defer></script>
-<script src="/static/js/shop-products.js?v=20261010" defer></script>
+<script src="/static/js/shop-products.js?v=20261011" defer></script>
 {% endblock %}

@@ -16,7 +16,7 @@
     <title>{% block title %}숏크루{% endblock %}</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
-    <link rel="stylesheet" href="/static/css/style.css?v=20261010">
+    <link rel="stylesheet" href="/static/css/style.css?v=20261011">
     <link rel="icon" type="image/png" href="/static/images/brand/logo.png">
     {% block head_theme %}{% endblock %}
     {% block head_extra %}{% endblock %}
@@ -34,12 +34,15 @@
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MK42JM7V"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
+    {% block top_notice %}
     <div class="partner-marquee" role="region" aria-label="쿠팡 파트너스 안내">
         <div class="partner-marquee__track">
             <div class="partner-marquee__half"><span class="partner-marquee__text">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</span></div>
             <div class="partner-marquee__half" aria-hidden="true"><span class="partner-marquee__text">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</span></div>
         </div>
     </div>
+    {% endblock %}
+    {% block site_header %}
     <header class="site-header">
         <div class="container site-header__inner">
             <div class="site-header__row site-header__row--brand-only">
@@ -50,6 +53,7 @@
             </div>
         </div>
     </header>
+    {% endblock %}
 
     <main class="page-body{% block main_extra_class %}{% endblock %}">
         <div class="container">

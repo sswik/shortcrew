@@ -67,9 +67,12 @@ class TestBuildItems(unittest.TestCase):
     def test_channel_env(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("MALL_KUPAS_CHANNELS", None)
-            self.assertEqual(mk.kupas_channels(), {"02", "03", "15", "31", "35"})
+            self.assertEqual(mk.kupas_channels(), {"all"})  # 기본 = 전 채널
+            self.assertTrue(mk.is_kupas_channel("07"))
+            self.assertFalse(mk.is_kupas_channel(""))
         with mock.patch.dict(os.environ, {"MALL_KUPAS_CHANNELS": ""}):
             self.assertEqual(mk.kupas_channels(), set())
+            self.assertFalse(mk.is_kupas_channel("02"))
         with mock.patch.dict(os.environ, {"MALL_KUPAS_CHANNELS": "15 35"}):
             self.assertTrue(mk.is_kupas_channel("35"))
             self.assertFalse(mk.is_kupas_channel("02"))

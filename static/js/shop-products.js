@@ -426,15 +426,10 @@
         var sec = document.createElement("section");
         sec.id = "shop-kupas";
         sec.className = "kupas-section";
-        sec.setAttribute("aria-labelledby", "shop-kupas-title");
-        var h = document.createElement("h2");
-        h.id = "shop-kupas-title";
-        h.className = "kupas-section__title";
-        h.textContent = "영상 속 번호 상품";
+        sec.setAttribute("aria-label", "영상 속 번호 상품");
         var list = document.createElement("div");
         list.id = "shop-kupas-list";
         list.className = "kupas-section__list";
-        sec.appendChild(h);
         sec.appendChild(list);
         anchor.parentNode.insertBefore(sec, anchor);
         if (allProducts.length) {

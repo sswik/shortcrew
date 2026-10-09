@@ -801,6 +801,46 @@ a {
 }
 
 /* ---- 쿠파스 채널 몰 전체(shop.html .shop-page--kupas): 레퍼런스처럼 가운데 한 열 ---- */
+/* 상단 쿠팡 고지: 흐르는 마퀴 대신 고정 한 줄(테마 accent 배경) */
+.mall-notice {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    padding: 8px 16px;
+    background: var(--mall-theme-accent, #00c2d1);
+    color: var(--mall-notice-fg, #111);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    word-break: keep-all;
+}
+.is-mall-kupas .page-body--mall {
+    padding-top: 1.2rem;
+}
+/* 로고 헤더가 없으니 모바일 sticky 탭은 고지 바 바로 아래에 붙인다(고지 1줄≈34px, 좁은 폰 2줄≈51px) */
+.is-mall-kupas {
+    --header-h: 34px;
+}
+@media (max-width: 520px) {
+    .is-mall-kupas {
+        --header-h: 51px;
+    }
+}
+.shop-page--kupas .shop-mobile-top--kupas {
+    padding: 0.4rem 0.65rem 0.1rem;
+}
+.shop-page--kupas .shop-mobile-top--kupas .shop-mobile-top__title {
+    font-size: 26px;
+    letter-spacing: -0.5px;
+}
+.shop-page--kupas .shop-mobile-top--kupas .shop-mobile-top__sub {
+    margin-top: 4px;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .shop-page--kupas .shop-mobile-shell {
     max-width: 600px;
     margin-left: auto;
