@@ -156,7 +156,25 @@
 {% block main_extra_class %} page-body--mall{% endblock %}
 
 {% block content %}
-<div class="shop-page shop-page--mobile">
+{% macro search_box(placeholder) %}
+            <div id="shop-product-search" class="shop-product-search" role="search">
+                <div class="shop-product-search__inner">
+                    <span class="shop-product-search__icon" aria-hidden="true">
+                        <svg class="shop-product-search__svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </span>
+                    <input
+                        type="search"
+                        id="shop-product-search-input"
+                        class="shop-product-search__input"
+                        placeholder="{{ placeholder }}"
+                        autocomplete="off"
+                        enterkeyhint="search"
+                        aria-label="상품명 또는 번호 검색"
+                    />
+                </div>
+            </div>
+{% endmacro %}
+<div class="shop-page shop-page--mobile{% if kupas_mode %} shop-page--kupas{% endif %}">
     <div class="shop-mobile-shell">
         <div class="shop-mobile-sticky">
             <div class="shop-mobile-top">
@@ -173,7 +191,7 @@
                     <p class="shop-mobile-top__sub">/{{ pump.name_slug | e }}</p>
                 </div>
             </div>
-            <div class="shop-tabs" data-shop-tabs data-shop-public-slug="{{ pump.name_slug | e }}" data-initial-tab="{{ ht | e }}">
+            <div class="shop-tabs{% if kupas_mode %} shop-tabs--row{% endif %}" data-shop-tabs data-shop-public-slug="{{ pump.name_slug | e }}" data-initial-tab="{{ ht | e }}">
                 <div class="shop-tabs__list" role="tablist" aria-label="몰 메뉴">
                     <a
                         class="shop-tabs__tab"
@@ -206,6 +224,7 @@
                         {% if ht != 'channel' %}tabindex="-1"{% endif %}
                         >소개</a>
                 </div>
+                {% if kupas_mode and ht == 'products' %}{{ search_box("상품명 또는 번호 검색") }}{% endif %}
             </div>
         </div>
 
@@ -219,28 +238,14 @@
         >
             <script id="shop-page-config" type="application/json">{{ shop_page_config | tojson }}</script>
 
-            <div id="shop-product-search" class="shop-product-search" role="search">
-                <div class="shop-product-search__inner">
-                    <span class="shop-product-search__icon" aria-hidden="true">
-                        <svg class="shop-product-search__svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    </span>
-                    <input
-                        type="search"
-                        id="shop-product-search-input"
-                        class="shop-product-search__input"
-                        placeholder="상품명 또는 번호(001) 검색"
-                        autocomplete="off"
-                        enterkeyhint="search"
-                        aria-label="상품명 또는 번호 검색"
-                    />
-                </div>
-            </div>
+            {% if not kupas_mode %}{{ search_box("상품명 또는 번호(001) 검색") }}{% endif %}
             <div id="shop-product-categories" class="shop-product-categories" role="group" aria-label="상품 카테고리" hidden></div>
 
             <div id="shop-product-root" class="card-grid" aria-busy="true">
                 <p class="muted" id="shop-loading">상품을 불러오는 중…</p>
             </div>
             <nav id="shop-product-pager" class="shop-product-pager" aria-label="상품 페이지" hidden></nav>
+            {% if kupas_mode %}<p class="kupas-footnote">가격은 쿠팡에서 확인해 주세요.</p>{% endif %}
         </section>
 
         <section
@@ -368,5 +373,5 @@
     })();
 </script>
 <script src="/static/js/shop-tabs.js" defer></script>
-<script src="/static/js/shop-products.js?v=20261009" defer></script>
+<script src="/static/js/shop-products.js?v=20261010" defer></script>
 {% endblock %}

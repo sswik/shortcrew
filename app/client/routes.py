@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import normalize_site_base
 from app.core.db import get_db
 from app.core.templates import templates
+from app.client.mall_kupas import is_kupas_channel
 from app.client.mall_sheet import resolve_mall_products_api
 from app.client.mall_products_service import (
     DEFAULT_COUPANG_IMAGE_WORKER as _DEFAULT_COUPANG_IMAGE_WORKER,
@@ -182,6 +183,8 @@ def _pump_hub_page(request: Request, *, pump: Pump, hub_tab: str) -> HTMLRespons
         os.environ.get("COUPANG_PARTNERS_LPTAG") or os.environ.get("COUPANG_LPTAG") or ""
     ).strip()
     mall_theme = pump_mall_theme(pump)
+    # 쿠파스 채널은 몰 전체를 «번호 카드» 디자인으로(app/client/mall_kupas.py)
+    kupas_mode = bool(mall_channel_id) and is_kupas_channel(mall_channel_id)
     shop_page_config = {
         "mallProductsFetchUrl": mall_fetch_url,
         "mallProductsApiUrl": mall_api_url,
@@ -191,9 +194,11 @@ def _pump_hub_page(request: Request, *, pump: Pump, hub_tab: str) -> HTMLRespons
         "coupangPartnersLptag": partners_lptag,
         "mallUrl": f"{public_base}/{quote(name_slug, safe='')}",
         "theme": mall_theme,
+        "kupasMode": kupas_mode,
     }
     ctx = {
         "pump": pump,
+        "kupas_mode": kupas_mode,
         "shop_page_config": shop_page_config,
         "hub_tab": hub_tab,
         "mall_theme": mall_theme,

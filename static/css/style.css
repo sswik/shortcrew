@@ -696,7 +696,7 @@ a {
     display: grid;
     grid-template-columns: 120px minmax(0, 1fr);
     gap: 14px;
-    margin: 16px 0 14px 6px;
+    margin: 16px 0 14px;
     padding: 14px;
     border-radius: 18px;
     background: #f7f4ec;
@@ -785,6 +785,100 @@ a {
     background: #000;
     color: #fff;
 }
+.kupas-card__vid {
+    grid-column: 1 / -1;
+    margin-top: -4px;
+    font-size: 13px;
+    color: #4b5a54;
+    text-align: center;
+    text-decoration: underline;
+}
+.kupas-footnote {
+    margin: 1.4rem 0 0.5rem;
+    font-size: 12px;
+    text-align: center;
+    color: var(--mall-theme-text-sub, #9fb8ac);
+}
+
+/* ---- 쿠파스 채널 몰 전체(shop.html .shop-page--kupas): 레퍼런스처럼 가운데 한 열 ---- */
+.shop-page--kupas .shop-mobile-shell {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.shop-page--kupas #shop-product-root.card-grid.kupas-root {
+    display: block !important;
+    margin-top: 0.2rem;
+    padding: 0 0.65rem;
+}
+.shop-page--kupas #shop-product-categories {
+    padding: 0 0.65rem;
+}
+/* 상품 | 블로그 | 소개 | [검색] 한 행 */
+.shop-page--kupas .shop-tabs.shop-tabs--row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.55rem 0.65rem;
+}
+.shop-page--kupas .shop-tabs--row .shop-tabs__list {
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+.shop-page--kupas .shop-tabs--row .shop-tabs__tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--mall-theme-card, #1f2a26);
+    color: #f7f4ec;
+    font-size: 14px;
+    white-space: nowrap;
+}
+.shop-page--kupas .shop-tabs--row .shop-tabs__tab[aria-selected="true"] {
+    background-color: #f7f4ec !important;
+    border-color: #f7f4ec !important;
+    color: #1d1d1b !important;
+    font-weight: 700 !important;
+}
+.shop-page--kupas .shop-tabs--row .shop-product-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+.shop-page--kupas .shop-tabs--row .shop-product-search__input {
+    min-height: 38px;
+    padding-top: 0.4rem;
+    padding-bottom: 0.4rem;
+    border-radius: 999px;
+}
+@media (max-width: 720px) {
+    .shop-page--kupas .shop-tabs.shop-tabs--row {
+        gap: 8px;
+        padding-bottom: 0.55rem;
+    }
+    .shop-page--kupas .shop-tabs--row .shop-tabs__tab {
+        min-height: 36px;
+        padding: 0 11px;
+        font-size: 13px;
+    }
+    .shop-page--kupas .shop-tabs--row .shop-product-search__input {
+        padding-left: 2.1rem;
+        font-size: 13px;
+    }
+}
+
 @media (max-width: 380px) {
     .kupas-card { grid-template-columns: 96px minmax(0, 1fr); }
     .kupas-card__img { width: 96px; height: 96px; }

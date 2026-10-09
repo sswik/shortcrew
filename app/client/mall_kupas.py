@@ -13,7 +13,7 @@
 
 응답(JSON 배열)
 - 쿠파스 행(Q=쿠파스, I=게시중, 공개시각 경과): `section="kupas"` + `no`·`rating`·`reviewCount`
-  ·`features`·`publishAt`. 번호 큰 것(최신 영상)부터.
+  ·`features`·`publishAt`·`video`(H열이 유튜브 ID 일 때). 번호 큰 것(최신 영상)부터.
 - 그 밖의 행: Apps Script 응답과 **동일한 형태·순서·범위**(`name/price/image/deepLink/category`,
   상품명이 있는 모든 행, 게시상태 무관). 2026-10-09 5개 채널 전수 대조로 일치 확인 — 기존 번호
   (시트 순서)가 바뀌지 않게 하기 위함이다.
@@ -28,6 +28,7 @@ KUPAS_SECTION = "쿠파스"
 KUPAS_COLUMNS = ("평점", "상품평수", "특징", "수집일", "공개시각", "구분")  # L~Q 헤더
 _DEFAULT_CHANNELS = "02,03,15,31,35"
 _FEATURE_SPLIT = re.compile(r"\s*[·|]\s*")
+_YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")  # H열이 유튜브 영상 ID 일 때만 «영상 보기» 링크
 
 
 def kupas_channels() -> set[str]:
@@ -124,6 +125,7 @@ def build_items(rows: list[list], now: datetime | None = None) -> list[dict]:
             "reviewCount": _int_or_none(_cell(row, 12)),
             "features": feats,
             "publishAt": pub_raw,
+            "video": _cell(row, 7) if _YOUTUBE_ID.match(_cell(row, 7)) else "",
         }
     ordered = [kupas[k] for k in sorted(kupas, reverse=True)]
     return ordered + legacy

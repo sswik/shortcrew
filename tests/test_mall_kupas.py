@@ -52,6 +52,13 @@ class TestBuildItems(unittest.TestCase):
         self.assertEqual(k3["reviewCount"], 2949)
         self.assertEqual(k3["features"], ["a", "b", "c"])
 
+    def test_video_only_when_youtube_id(self) -> None:
+        yt = _row(1, "yt", q="쿠파스"); yt[7] = "PUYA8fMJyaY"
+        num = _row(2, "num", q="쿠파스"); num[7] = "93"  # 기존 '연관영상No' 숫자는 링크 안 만듦
+        items = {i["no"]: i for i in mk.build_items([yt, num], NOW)}
+        self.assertEqual(items[1]["video"], "PUYA8fMJyaY")
+        self.assertEqual(items[2]["video"], "")
+
     def test_duplicate_no_last_row_wins(self) -> None:
         rows = [_row(2, "first", q="쿠파스"), _row(2, "second", q="쿠파스")]
         items = mk.build_items(rows, NOW)

@@ -31,6 +31,8 @@
         workerBase: "",
         pumpSlug: "",
         partnersLptag: "",
+        /** 쿠파스 채널: 기존 상품까지 «번호 카드» 디자인(서버 shop_page_config.kupasMode) */
+        kupasMode: false,
     };
 
     function readConfig() {
@@ -334,6 +336,14 @@
         }
         root.classList.remove("is-empty");
         var frag = document.createDocumentFragment();
+        if (ctx.kupasMode) {
+            items.forEach(function (p) {
+                if (pickName(p) || pickDeepLink(p)) frag.appendChild(buildKupasCard(p, true));
+            });
+            root.appendChild(frag);
+            root.setAttribute("aria-busy", "false");
+            return;
+        }
         items.forEach(function (p) {
             var name = pickName(p);
             var priceRaw = pickPrice(p);
@@ -465,14 +475,24 @@
         return n;
     }
 
-    function buildKupasCard(p) {
+    /**
+     * «번호 카드». legacy=true 면 기존 상품(시트 순서 번호) — 위 구역과 같은 숫자가 두 번 보이지 않게
+     * 쿠파스 상품이 있으면 번호 배지를 빼고, 특징 칩 자리에 카테고리를 쓴다.
+     */
+    function buildKupasCard(p, legacy) {
         var name = pickName(p);
         var link = withCoupangPartnerQuery(pickDeepLink(p), ctx.partnersLptag);
-        var card = el("article", "kupas-card");
-        card.id = "kupas-" + p.__no;
-        card.setAttribute("data-no", String(p.__no));
+        var card = el("article", "kupas-card" + (legacy ? " kupas-card--legacy" : ""));
+        if (!legacy) {
+            card.id = "kupas-" + p.__no;
+            card.setAttribute("data-no", String(p.__no));
+        }
 
-        card.appendChild(el("div", "kupas-card__no", p.__no));
+        if (p.__no && (!legacy || !kupasProducts.length)) {
+            card.appendChild(el("div", "kupas-card__no", p.__no));
+        } else {
+            card.classList.add("kupas-card--no-badge");
+        }
 
         var img = el("img", "kupas-card__img");
         img.alt = name || "상품";
@@ -485,6 +505,7 @@
         var body = el("div", "kupas-card__body");
         body.appendChild(el("div", "kupas-card__name", name || "(이름 없음)"));
         var feats = Array.isArray(p.features) ? p.features : [];
+        if (!feats.length && legacy && pickCategory(p)) feats = [pickCategory(p)];
         if (feats.length) {
             var fw = el("div", "kupas-card__feats");
             feats.slice(0, 4).forEach(function (f) {
@@ -515,6 +536,14 @@
                 );
             });
             card.appendChild(btn);
+        }
+        var vid = String(p.video || "").trim();
+        if (vid) {
+            var va = el("a", "kupas-card__vid", "이 상품이 나온 영상 보기");
+            va.href = "https://youtube.com/shorts/" + encodeURIComponent(vid);
+            va.target = "_blank";
+            va.rel = "noopener";
+            card.appendChild(va);
         }
         return card;
     }
@@ -688,6 +717,8 @@
         ctx.workerBase = String(cfg.coupangImageWorkerBase || "").trim();
         ctx.pumpSlug = String(cfg.pumpSlug || "").trim();
         ctx.partnersLptag = String(cfg.coupangPartnersLptag || "").trim();
+        ctx.kupasMode = !!cfg.kupasMode;
+        if (ctx.kupasMode) ctx.root.classList.add("kupas-root");
 
         if (!fetchUrl) {
             if (!apiUrl) {
