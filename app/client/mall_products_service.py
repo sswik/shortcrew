@@ -19,6 +19,9 @@ import httpx
 from fastapi import HTTPException
 from fastapi.responses import Response
 
+from app.client.mall_kupas import build_items as build_kupas_items
+from app.client.mall_kupas import is_kupas_channel
+
 logger = logging.getLogger(__name__)
 
 # 쿠팡 썸네일 프록시(Cloudflare Workers) 기본값. 전역 env COUPANG_IMAGE_WORKER_BASE 비면 사용.
@@ -75,6 +78,32 @@ def _sheet_direct_products_response(cid: str, channel: dict, now: float) -> Resp
     return Response(content=body, media_type="application/json")
 
 
+def invalidate_mall_products_cache(channel_id: str) -> None:
+    with _mall_products_cache_lock:
+        _mall_products_cache.pop((channel_id or "").strip(), None)
+
+
+def _kupas_products_response(cid: str, channel: dict) -> Response | None:
+    """쿠파스 채널 상품 JSON(구조는 app/client/mall_kupas.py). 시트 읽기 실패면 None."""
+    from app.admin.ops.services.google_sheets import get_all_rows
+
+    sheet_id = (channel.get("google_sheet_id") or "").strip()
+    tab = (channel.get("sheet_tab_name") or "상품목록").strip()
+    try:
+        rows = asyncio.run(get_all_rows(sheet_id, tab, "A2:Q2000"))
+    except Exception as e:
+        logger.warning("mall_kupas_read_error cid=%s tab=%s err=%s", cid, tab, e)
+        return None
+    body = json.dumps(build_kupas_items(rows), ensure_ascii=False).encode()
+    with _mall_products_cache_lock:
+        _mall_products_cache[cid] = (
+            time.monotonic() + max(1.0, _MALL_PRODUCTS_CACHE_TTL_SECONDS),
+            body,
+            "application/json",
+        )
+    return Response(content=body, media_type="application/json")
+
+
 def mall_products_response(channel_id: str = "") -> Response:
     """Apps Script 상품 JSON 을 서버가 대신 받아 돌려준다(브라우저 CORS 회피).
 
@@ -102,6 +131,11 @@ def mall_products_response(channel_id: str = "") -> Response:
     channel = next((c for c in get_channels() if c.get("channel_id") == cid), None)
     if channel is None:
         raise HTTPException(status_code=404, detail="channel not found")
+    if is_kupas_channel(cid) and (channel.get("google_sheet_id") or "").strip():
+        # 쿠파스 채널: 시트 A~Q 직접(번호=A열). 읽기 실패 시에만 아래 Apps Script 경로로 폴백.
+        kupas_resp = _kupas_products_response(cid, channel)
+        if kupas_resp is not None:
+            return kupas_resp
     base = (channel.get("mall_products_api_url") or "").strip()
     if not base:
         # Apps Script 미설정 채널(안지아 등) → 채널 구글 시트(탭)를 서버가 직접 읽어 노출

@@ -670,6 +670,127 @@ a {
     line-height: 0;
 }
 
+/* 쿠파스 «영상 속 번호 상품» 구역 — static/js/shop-products.js setupKupasSection.
+   번호 = 시트 A열(영상 속 「프로필 링크 N번」), 가격 비표시, 평점·상품평 크게. */
+.kupas-section {
+    padding: 0.4rem 0.65rem 0.2rem;
+}
+.kupas-section__title {
+    margin: 0.6rem 0 0.2rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--mall-theme-text, inherit);
+}
+.kupas-section__title--legacy {
+    padding: 0 0.65rem;
+    margin-top: 1.1rem;
+}
+.kupas-section__empty {
+    margin: 0.8rem 0;
+    color: var(--mall-theme-text-sub, #94a3b8);
+    font-size: 0.92rem;
+}
+.kupas-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 14px;
+    margin: 16px 0 14px 6px;
+    padding: 14px;
+    border-radius: 18px;
+    background: #f7f4ec;
+    color: #1d1d1b;
+    scroll-margin-top: 72px;
+}
+.kupas-card.is-hit {
+    outline: 4px solid var(--mall-theme-accent, #f2c230);
+}
+.kupas-card__no {
+    position: absolute;
+    top: -10px;
+    left: -6px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 46px;
+    height: 46px;
+    padding: 0 8px;
+    border-radius: 23px;
+    background: #f2c230;
+    color: #1d1d1b;
+    font-size: 22px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+}
+.kupas-card__img {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    background: #fff;
+    border-radius: 12px;
+}
+.kupas-card__body {
+    min-width: 0;
+}
+.kupas-card__name {
+    margin: 2px 0 6px;
+    font-size: 15.5px;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+}
+.kupas-card__feats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 4px 0 6px;
+}
+.kupas-card__feats span {
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #e9e4d6;
+    color: #1d1d1b;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+.kupas-card__score {
+    margin-top: 4px;
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.25;
+    color: #1d1d1b;
+}
+.kupas-card__score b {
+    color: #e0a100;
+}
+.kupas-card__btn {
+    grid-column: 1 / -1;
+    display: block;
+    padding: 13px;
+    border-radius: 12px;
+    background: #1d1d1b;
+    color: #f7f4ec;
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+    text-decoration: none;
+}
+.kupas-card__btn:hover,
+.kupas-card__btn:focus-visible {
+    background: #000;
+    color: #fff;
+}
+@media (max-width: 380px) {
+    .kupas-card { grid-template-columns: 96px minmax(0, 1fr); }
+    .kupas-card__img { width: 96px; height: 96px; }
+    .kupas-card__score { font-size: 23px; }
+}
+
 /* 자동 큐레이션 번호 배지(001..) — 좌상단 */
 .product-card__no {
     position: absolute;

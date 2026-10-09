@@ -4,6 +4,8 @@
  */
 (function () {
     var allProducts = [];
+    /** 쿠파스 «영상 속 번호 상품»(서버 app/client/mall_kupas.py, 번호 큰 것부터) */
+    var kupasProducts = [];
     var currentPage = 1;
     var currentKeyword = "";
     /**
@@ -125,6 +127,8 @@
         return list.filter(function (p) {
             if (pickName(p).toLowerCase().indexOf(kw) !== -1) return true;
             // 번호로도 검색: 숫자면 정확매칭("001"·"07"·"7" → 해당 번호)
+            // 쿠파스 구역이 있으면 "7" 은 영상 번호(위 구역) 전용, 기존 상품은 "007" 처럼 0 으로 시작할 때만.
+            if (kupasProducts.length && /^[1-9]\d*$/.test(kw)) return false;
             if (p.__no && /^\d+$/.test(kw)) {
                 if (String(p.__no) === String(parseInt(kw, 10))) return true;
             }
@@ -364,8 +368,9 @@
             var media = document.createElement("div");
             media.className = "product-card__media";
             media.appendChild(buildThumbFrame(imgSrc, workerBase, name));
-            // 자동 큐레이션 번호(001..) — 카드 좌상단 배지
-            if (p.__no) {
+            // 자동 큐레이션 번호(001..) — 카드 좌상단 배지. 쿠파스 구역이 있으면 같은 숫자가
+            // 두 번 보이지 않게 기존 상품 배지는 숨긴다("007" 검색은 계속 동작).
+            if (p.__no && !kupasProducts.length) {
                 var noBadge = document.createElement("span");
                 noBadge.className = "product-card__no";
                 noBadge.textContent = ("000" + p.__no).slice(-3);
@@ -399,6 +404,153 @@
         });
         root.appendChild(frag);
         root.setAttribute("aria-busy", "false");
+    }
+
+    /* ---------- 쿠파스 «영상 속 번호 상품» 구역 ---------- */
+
+    /** 검색창 아래·카테고리 위에 [영상 속 번호 상품] 구역과 [전체 상품] 제목을 1회 삽입. */
+    function setupKupasSection() {
+        if (document.getElementById("shop-kupas")) return;
+        var anchor = ctx.categoryBar || ctx.root;
+        if (!anchor || !anchor.parentNode) return;
+        var sec = document.createElement("section");
+        sec.id = "shop-kupas";
+        sec.className = "kupas-section";
+        sec.setAttribute("aria-labelledby", "shop-kupas-title");
+        var h = document.createElement("h2");
+        h.id = "shop-kupas-title";
+        h.className = "kupas-section__title";
+        h.textContent = "영상 속 번호 상품";
+        var list = document.createElement("div");
+        list.id = "shop-kupas-list";
+        list.className = "kupas-section__list";
+        sec.appendChild(h);
+        sec.appendChild(list);
+        anchor.parentNode.insertBefore(sec, anchor);
+        if (allProducts.length) {
+            var h2 = document.createElement("h2");
+            h2.id = "shop-legacy-title";
+            h2.className = "kupas-section__title kupas-section__title--legacy";
+            h2.textContent = "전체 상품";
+            anchor.parentNode.insertBefore(h2, anchor);
+        }
+    }
+
+    function kupasFiltered() {
+        var kw = String(currentKeyword || "").trim().toLowerCase();
+        if (!kw) return kupasProducts;
+        return kupasProducts.filter(function (p) {
+            if (/^[1-9]\d*$/.test(kw)) return p.__no === parseInt(kw, 10);
+            return pickName(p).toLowerCase().indexOf(kw) !== -1;
+        });
+    }
+
+    /** 쿠팡 이미지만 워커 경유, 그 밖(공개 이미지 호스트)은 원본 그대로. */
+    function kupasImageSrc(src) {
+        var s = String(src || "").trim();
+        if (!s) return "";
+        var host = "";
+        try {
+            host = new URL(s, location.href).hostname.toLowerCase();
+        } catch (e) {
+            return s;
+        }
+        return host.indexOf("coupang") !== -1 ? imageSrcForDisplay(s, ctx.workerBase) : s;
+    }
+
+    function el(tag, cls, text) {
+        var n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text !== undefined && text !== null) n.textContent = String(text);
+        return n;
+    }
+
+    function buildKupasCard(p) {
+        var name = pickName(p);
+        var link = withCoupangPartnerQuery(pickDeepLink(p), ctx.partnersLptag);
+        var card = el("article", "kupas-card");
+        card.id = "kupas-" + p.__no;
+        card.setAttribute("data-no", String(p.__no));
+
+        card.appendChild(el("div", "kupas-card__no", p.__no));
+
+        var img = el("img", "kupas-card__img");
+        img.alt = name || "상품";
+        img.loading = "lazy";
+        var src = kupasImageSrc(pickImage(p));
+        if (src) img.src = src;
+        else img.style.visibility = "hidden";
+        card.appendChild(img);
+
+        var body = el("div", "kupas-card__body");
+        body.appendChild(el("div", "kupas-card__name", name || "(이름 없음)"));
+        var feats = Array.isArray(p.features) ? p.features : [];
+        if (feats.length) {
+            var fw = el("div", "kupas-card__feats");
+            feats.slice(0, 4).forEach(function (f) {
+                fw.appendChild(el("span", "", f));
+            });
+            body.appendChild(fw);
+        }
+        var rc = parseInt(p.reviewCount, 10);
+        var rating = Number(p.rating);
+        if (rc > 0 && rating > 0) {
+            var score = el("div", "kupas-card__score");
+            score.appendChild(el("b", "", "★ " + rating.toFixed(1)));
+            score.appendChild(document.createTextNode(" · 상품평 " + rc.toLocaleString("ko-KR") + "개"));
+            body.appendChild(score);
+        }
+        card.appendChild(body);
+
+        if (link) {
+            var btn = el("a", "kupas-card__btn", "제품 확인하고 돈 벌기");
+            attachBuyAttributes(btn, link, ctx.pumpSlug, extractCoupangProductId(link), name);
+            btn.rel = "sponsored nofollow noopener";
+            btn.setAttribute("data-kupas-no", String(p.__no));
+            btn.addEventListener("click", function () {
+                window.dispatchEvent(
+                    new CustomEvent("mall:product-click", {
+                        detail: { deepLink: link, name: name, price: "", category: pickCategory(p), no: p.__no },
+                    }),
+                );
+            });
+            card.appendChild(btn);
+        }
+        return card;
+    }
+
+    function paintKupas() {
+        var sec = document.getElementById("shop-kupas");
+        var list = document.getElementById("shop-kupas-list");
+        if (!sec || !list) return;
+        var items = kupasFiltered();
+        list.innerHTML = "";
+        if (!items.length) {
+            var kw = String(currentKeyword || "").trim();
+            if (/^[1-9]\d*$/.test(kw)) {
+                list.appendChild(el("p", "kupas-section__empty", kw + "번 상품은 아직 공개 전이에요."));
+                sec.hidden = false;
+            } else {
+                sec.hidden = !!kw;
+            }
+            return;
+        }
+        sec.hidden = false;
+        var frag = document.createDocumentFragment();
+        items.forEach(function (p) {
+            frag.appendChild(buildKupasCard(p));
+        });
+        list.appendChild(frag);
+    }
+
+    /** 몰 주소 #7 → 7번 카드로 스크롤·강조(프로필 링크에서 번호로 바로 진입). */
+    function focusKupasFromHash() {
+        var h = String(location.hash || "").replace(/^#/, "");
+        if (!/^[1-9]\d*$/.test(h) || !kupasProducts.length) return;
+        var card = document.getElementById("kupas-" + parseInt(h, 10));
+        if (!card) return;
+        card.classList.add("is-hit");
+        card.scrollIntoView({ block: "center" });
     }
 
     function totalPagesFor(list) {
@@ -473,6 +625,22 @@
 
     function paint() {
         if (!ctx.root) return;
+        if (kupasProducts.length) {
+            paintKupas();
+            var legacyTitle = document.getElementById("shop-legacy-title");
+            var numberSearch = /^[1-9]\d*$/.test(String(currentKeyword || "").trim());
+            if (legacyTitle) legacyTitle.hidden = numberSearch;
+            if (numberSearch) {
+                // "7" 은 영상 번호 검색 → 아래 그리드는 비움(“검색 결과 없음” 문구도 내지 않음).
+                ctx.root.innerHTML = "";
+                if (ctx.pager) {
+                    ctx.pager.innerHTML = "";
+                    ctx.pager.hidden = true;
+                }
+                return;
+            }
+            if (!allProducts.length) return;
+        }
         var list = productsFiltered();
 
         if (list.length === 0 && allProducts.length > 0) {
@@ -579,16 +747,38 @@
             .then(function (data) {
                 if (loading) loading.remove();
                 var list = normalizeList(data);
-                // 큐레이션 순서대로 자동 번호(001..). 시트 행 순서 바꾸면 번호도 따라 재정렬됨.
-                list.forEach(function (p, i) {
+                // 쿠파스 «영상 속 번호 상품»(section=kupas, 번호=시트 A열)과 기존 상품을 나눈다.
+                var kupas = [];
+                var legacy = [];
+                list.forEach(function (p) {
+                    if (p && typeof p === "object" && p.section === "kupas") kupas.push(p);
+                    else legacy.push(p);
+                });
+                kupas.forEach(function (p) {
+                    p.__no = parseInt(p.no, 10) || 0;
+                });
+                // 기존 상품: 큐레이션 순서대로 자동 번호(001..). 시트 행 순서 바꾸면 번호도 따라 재정렬됨.
+                legacy.forEach(function (p, i) {
                     if (p && typeof p === "object") p.__no = i + 1;
                 });
-                allProducts = list;
+                kupasProducts = kupas;
+                allProducts = legacy;
+                if (kupasProducts.length) setupKupasSection();
                 currentPage = 1;
                 activeCategory = "";
                 currentKeyword = "";
                 var si = document.getElementById("shop-product-search-input");
                 if (si) si.value = "";
+                if (!allProducts.length && kupasProducts.length) {
+                    // 쿠파스 상품만 있는 채널: 위 구역만 보이고 아래 그리드는 비운다.
+                    ctx.root.innerHTML = "";
+                    ctx.root.setAttribute("aria-busy", "false");
+                    hideCategoryBar();
+                    bindSearchInput();
+                    paintKupas();
+                    focusKupasFromHash();
+                    return;
+                }
                 if (!allProducts.length) {
                     initCategoryBar(); // 최소 "전체" pill은 보여서 상품 탭 UI가 비정상처럼 보이지 않게 유지
                     renderError(
@@ -601,6 +791,7 @@
                 bindSearchInput();
                 lastLayoutPageSize = getPageSize();
                 paint();
+                focusKupasFromHash();
             })
             .catch(function (err) {
                 if (loading) loading.remove();

@@ -29,6 +29,7 @@
 /admin/api/ops/mall/click [POST]
 /admin/api/ops/mall/clicks/recent [GET]
 /admin/api/ops/mall/clicks/summary [GET]
+/admin/api/ops/mall/upsert [POST]
 /admin/api/ops/naver/trend [GET]
 /admin/api/ops/sheets/deeplink-preview [POST]
 /admin/api/ops/sheets/items [GET]
