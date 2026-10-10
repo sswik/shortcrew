@@ -218,6 +218,39 @@ class DmAutomation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class OpsState(Base):
+    """스케줄러 영속 상태(JSON). 과거 `logs/*.json` 파일이던 것을 DB 로 옮겼다.
+
+    Cloud Run 은 파일시스템이 휘발성이라 인스턴스가 교체되면 상태가 사라진다.
+    백필 일일 카운트가 날아가면 상한이 리셋되어 과발행하고, IG 토큰 저장소가
+    날아가면 `.env` 의 낡은 토큰으로 되돌아간다. 그래서 DB 에 둔다.
+
+    key 예: `ig_backfill_daily` · `ig_tokens` · `ig_report_state`
+    """
+
+    __tablename__ = "ops_state"
+
+    k: Mapped[str] = mapped_column(String(128), primary_key=True)
+    v: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OpsLock(Base):
+    """슬롯 단위 분산 잠금. 인스턴스가 여럿이어도 한 패스는 한 번만 돈다.
+
+    Cloud Run 은 오토스케일하므로 같은 시각에 두 인스턴스가 같은 행을 집어
+    동일 영상을 두 번 발행할 수 있다. 발행 전 이 잠금을 잡는다.
+    만료(`expires_at`)를 둬서 프로세스가 죽어도 잠금이 영구히 남지 않는다.
+    """
+
+    __tablename__ = "ops_lock"
+
+    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    holder: Mapped[str] = mapped_column(String(128), default="")
+    acquired_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
 # MySQL: 끊긴 커넥션 자동 감지(pre_ping) + 오래된 커넥션 재활용.
 engine = create_engine(
     DATABASE_URL,

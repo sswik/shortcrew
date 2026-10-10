@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -44,8 +46,29 @@ def _friendly_sheets_read_error(resp: httpx.Response, tab_name: str) -> str:
     return hint
 SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 
-# 프로젝트 루트 기준 google-key.json
-_KEY_FILE = project_root() / "google-key.json"
+# 서비스 계정 키 경로. 기본은 프로젝트 루트의 google-key.json.
+# Cloud Run 은 코드 디렉터리에 파일을 넣을 수 없어 Secret Manager 를 `/secrets/google-key.json`
+# 으로 마운트하고 env `GOOGLE_KEY_FILE` 로 그 경로를 준다.
+# (`/app` 하위에 시크릿을 마운트하면 코드 디렉터리가 통째로 가려진다.)
+def _key_file() -> Path:
+    override = (os.environ.get("GOOGLE_KEY_FILE") or "").strip()
+    return Path(override) if override else project_root() / "google-key.json"
+
+
+class _KeyFileProxy:
+    """기존 `_KEY_FILE` 사용처(import 시점 고정)를 깨지 않기 위한 지연 평가 래퍼."""
+
+    def exists(self) -> bool:
+        return _key_file().exists()
+
+    def __fspath__(self) -> str:
+        return str(_key_file())
+
+    def __str__(self) -> str:
+        return str(_key_file())
+
+
+_KEY_FILE = _KeyFileProxy()
 
 
 def _get_access_token_from_keyfile() -> str:

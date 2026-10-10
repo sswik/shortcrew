@@ -61,23 +61,24 @@ def _check_hour() -> int:
         return 5
 
 
+_STATE_KEY = "ig_tokens"
+
+
 def load_store() -> dict:
-    """{channel_id: {"token": str, "refreshed_at": iso, "expires_in": int}}"""
-    try:
-        with open(_store_file(), encoding="utf-8") as f:
-            return json.load(f) or {}
-    except (FileNotFoundError, ValueError, OSError):
-        return {}
+    """{channel_id: {"token": str, "refreshed_at": iso, "expires_in": int}}
+
+    저장 위치는 DB(`ops_state`). Cloud Run 파일시스템이 휘발성이라 파일에 두면
+    갱신된 토큰이 사라지고 `.env` 의 낡은 토큰으로 되돌아간다. 상세: ops_state 모듈.
+    """
+    from app.admin.ops.services import ops_state
+
+    return ops_state.load_json(_STATE_KEY, _store_file())
 
 
 def _save_store(d: dict) -> None:
-    try:
-        path = _store_file()
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(d, f, ensure_ascii=False, indent=1)
-    except OSError as e:
-        logger.warning("ig_token_refresh: 저장 실패 %s", e)
+    from app.admin.ops.services import ops_state
+
+    ops_state.save_json(_STATE_KEY, d, _store_file())
 
 
 def current_token(cid: str) -> str:
@@ -166,10 +167,23 @@ async def _loop() -> None:
             logger.exception("ig_token_refresh loop failed: %s", e)
 
 
+def loop_enabled() -> bool:
+    """인프로세스 루프를 돌릴지. 미지정이면 IG_TOKEN_REFRESH_ENABLED 를 따른다.
+
+    Cloud Run 은 min-instances=0 이면 상시 인스턴스가 없어 루프가 못 돈다.
+    대신 Cloud Scheduler 가 run-now 엔드포인트를 호출한다 → 그 환경에선 IG_TOKEN_REFRESH_LOOP=0.
+    """
+    raw = (os.environ.get("IG_TOKEN_REFRESH_LOOP") or "").strip()
+    return _truthy("IG_TOKEN_REFRESH_ENABLED") if raw == "" else raw.lower() in ("1", "true", "yes", "on")
+
+
 def start() -> None:
     """앱 startup 에서 호출. env 로 켜졌을 때만 백그라운드 태스크 기동."""
     if not _truthy("IG_TOKEN_REFRESH_ENABLED"):
         logger.info("ig_token_refresh disabled (IG_TOKEN_REFRESH_ENABLED != 1)")
+        return
+    if not loop_enabled():
+        logger.info("ig_token_refresh 인프로세스 루프 off (IG_TOKEN_REFRESH_LOOP=0) — Cloud Scheduler 가 호출")
         return
     try:
         asyncio.get_running_loop().create_task(_loop())

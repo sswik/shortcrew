@@ -68,22 +68,20 @@ def _state_file() -> str:
     return (os.environ.get("IG_BACKFILL_STATE_FILE") or "/app/logs/ig_backfill_daily.json").strip()
 
 
+_STATE_KEY = "ig_backfill_daily"
+
+
 def _load_daily() -> dict:
-    try:
-        with open(_state_file(), encoding="utf-8") as f:
-            return json.load(f) or {}
-    except (FileNotFoundError, ValueError, OSError):
-        return {}
+    """일일 발행 카운트. DB(`ops_state`) 보관 — 유실되면 상한이 리셋돼 과발행한다."""
+    from app.admin.ops.services import ops_state
+
+    return ops_state.load_json(_STATE_KEY, _state_file())
 
 
 def _save_daily(d: dict) -> None:
-    try:
-        path = _state_file()
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(d, f, ensure_ascii=False)
-    except OSError as e:
-        logger.warning("ig_backfill: 상태파일 저장 실패 %s", e)
+    from app.admin.ops.services import ops_state
+
+    ops_state.save_json(_STATE_KEY, d, _state_file())
 
 
 def _truthy(key: str) -> bool:
@@ -428,6 +426,16 @@ async def run_backfill_once(*, dry_run: bool = False) -> dict:
     cap = effective_cap()
     min_age = _int_env("IG_BACKFILL_MIN_AGE_HOURS", 48)
 
+    # 분산 잠금: Cloud Run 오토스케일·로컬 병행 운영 시 같은 슬롯이 두 번 돌면
+    # 같은 행을 두 인스턴스가 집어 동일 영상을 두 번 발행한다(ig_media_id 는 발행 후에야 써진다).
+    from app.admin.ops.services import ops_state
+
+    lock = f"ig_backfill:{datetime.now(_KST).strftime('%Y-%m-%dT%H')}"
+    if not dry_run and not ops_state.acquire_lock(lock, _int_env("IG_BACKFILL_LOCK_TTL_S", 900)):
+        logger.info("ig_backfill: 다른 인스턴스가 이 슬롯을 처리 중 → 스킵 (%s)", lock)
+        return {"cap": cap, "dry_run": dry_run, "published": [], "skipped": [("*", "locked")],
+                "errors": [], "locked": True}
+
     published, skipped, errors = [], [], []
     # `_publish_one` 은 'error'(단수)를 반환한다 → 버킷명('errors')과 달라서 과거 KeyError 로
     # 패스가 통째로 중단됐다(한 채널 실패 = 뒤 채널 전부 미발행 + 재시도 미작동). 매핑으로 고정하고,
@@ -460,6 +468,8 @@ async def run_backfill_once(*, dry_run: bool = False) -> dict:
     log = logger.warning if errors else logger.info
     log("ig_backfill pass done cap=%s pub=%d skip=%d err=%d%s", cap, len(published),
         len(skipped), len(errors), (" " + repr(errors)) if errors else "")
+    if not dry_run:
+        ops_state.release_lock(lock)
     return {"cap": cap, "dry_run": dry_run, "published": published,
             "skipped": skipped, "errors": errors}
 
@@ -483,10 +493,24 @@ async def _loop() -> None:
             logger.exception("ig_backfill loop failed: %s", e)
 
 
+def loop_enabled() -> bool:
+    """인프로세스 루프를 돌릴지. 미지정이면 기존처럼 IG_BACKFILL_ENABLED 를 따른다.
+
+    Cloud Run 은 `min-instances=0` 이면 요청이 없을 때 인스턴스가 없어 루프가 못 돈다.
+    대신 Cloud Scheduler 가 `/admin/api/ops/ig-backfill/run-now` 를 때린다.
+    그 환경에서는 IG_BACKFILL_LOOP=0 으로 두어 루프와 스케줄러 호출이 겹치지 않게 한다.
+    """
+    raw = (os.environ.get("IG_BACKFILL_LOOP") or "").strip()
+    return _truthy("IG_BACKFILL_ENABLED") if raw == "" else raw.lower() in ("1", "true", "yes", "on")
+
+
 def start() -> None:
     """앱 startup 에서 호출. env 로 켜졌을 때만 백그라운드 태스크 기동."""
     if not _truthy("IG_BACKFILL_ENABLED"):
         logger.info("ig_backfill disabled (IG_BACKFILL_ENABLED != 1)")
+        return
+    if not loop_enabled():
+        logger.info("ig_backfill 인프로세스 루프 off (IG_BACKFILL_LOOP=0) — Cloud Scheduler 가 호출")
         return
     try:
         asyncio.get_running_loop().create_task(_loop())

@@ -14,8 +14,13 @@ KST = timezone(timedelta(hours=9))
 def load_env() -> None:
     """`.env` 를 읽어, **현재 값이 비어 있을 때만** 키를 채운다.
     (셸에 빈 CHANNEL_* 만 export 되어 있어 .env 가 무시되는 문제 방지)
-    다른 모듈이 os.environ 을 읽기 전에 호출해야 한다."""
-    path = _ROOT / ".env"
+    다른 모듈이 os.environ 을 읽기 전에 호출해야 한다.
+
+    경로는 기본 `<프로젝트루트>/.env` 이며, env `ENV_FILE` 로 덮어쓸 수 있다.
+    Cloud Run 에서는 Secret Manager 시크릿을 `/secrets/env` 로 마운트하고
+    `ENV_FILE=/secrets/env` 를 준다(`/app/.env` 에 직접 마운트하면 코드 디렉터리가 가려진다)."""
+    override = (os.environ.get("ENV_FILE") or "").strip()
+    path = Path(override) if override else _ROOT / ".env"
     if not path.is_file():
         return
     from dotenv import dotenv_values
