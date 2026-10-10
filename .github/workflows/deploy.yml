@@ -1,0 +1,100 @@
+# main 푸시 → 이미지 빌드·푸시 → Cloud Run 배포.
+#
+# 인증은 Workload Identity Federation(키 파일 없음). GCP 쪽 사전 구성:
+#   - WIF 풀 `github` / 공급자 `github-provider` (issuer: token.actions.githubusercontent.com)
+#   - 배포 SA `github-deployer@sswik-2026` : run.admin, artifactregistry.writer,
+#     iam.serviceAccountUser (런타임 SA `sheetbot@` 를 지정해 배포하려면 필요)
+#   - 공급자 attribute-condition 으로 이 저장소만 허용
+#
+# 배포는 **이미지만 교체**한다(`--image` 단독). env/시크릿/서비스계정 등 서비스 설정은
+# 기존 리비전 값을 그대로 물려받으므로, 워크플로에 시크릿을 중복 기재하지 않는다.
+# 설정을 바꿀 때는 로컬에서 `gcloud run deploy` 또는 콘솔로 한 번 적용한다.
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # 수동 실행(롤백·재배포)
+
+concurrency:
+  group: deploy-cloud-run
+  cancel-in-progress: false   # 배포는 중간에 끊지 않는다
+
+env:
+  PROJECT_ID: sswik-2026
+  REGION: asia-northeast1
+  SERVICE: shortcrew
+  REPO: asia-northeast1-docker.pkg.dev/sswik-2026/shortcrew/app
+
+permissions:
+  contents: read
+  id-token: write   # WIF 토큰 발급에 필요
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # 앱 부팅 시 `app/core/db.run_migrations()` 가 create_all 을 돌려 실제 DB 가 필요하다.
+    # 운영은 TiDB(MySQL 8.0 호환)이므로 CI 도 MySQL 8 로 맞춘다.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: crews
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: 의존성 설치
+        run: pip install --no-cache-dir -r requirements.txt
+      - name: 테스트
+        env:
+          DATABASE_URL: mysql+pymysql://root:ci@127.0.0.1:3306/crews
+        run: python -m unittest discover -s tests
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/470520053638/locations/global/workloadIdentityPools/github/providers/github-provider
+          service_account: github-deployer@sswik-2026.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Artifact Registry 인증
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: 이미지 빌드·푸시
+        run: |
+          TAG="${{ github.sha }}"
+          docker build -t "$REPO:$TAG" -t "$REPO:latest" .
+          docker push "$REPO:$TAG"
+          docker push "$REPO:latest"
+
+      - name: Cloud Run 배포
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$REPO:${{ github.sha }}" \
+            --region "$REGION" --project "$PROJECT_ID" --quiet
+
+      - name: 헬스 체크
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+                 --project "$PROJECT_ID" --format='value(status.url)')
+          for i in $(seq 1 10); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/health" || echo 000)
+            [ "$CODE" = "200" ] && echo "health OK ($URL)" && exit 0
+            echo "재시도 $i: HTTP $CODE"; sleep 10
+          done
+          echo "헬스 체크 실패"; exit 1
