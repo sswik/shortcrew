@@ -26,6 +26,8 @@ logging.basicConfig(
 for _noisy in ("httpx", "httpcore", "urllib3"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,7 +40,38 @@ from app.webhooks.instagram import router as ig_webhook_router
 from app.admin.web_routes import router as admin_router
 from app.client.routes import router as client_router
 
-app = FastAPI(title="숏크루")
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    """앱 수명주기 — 기동 시 백그라운드 스케줄러를 띄운다.
+
+    각 `start()` 는 자기 env 플래그(`*_ENABLED` / `*_LOOP`)를 보고 스스로 켜고 끄므로
+    여기서는 조건 분기를 하지 않는다. Cloud Run 처럼 Cloud Scheduler 가 HTTP 로
+    구동하는 환경에서는 `*_LOOP=0` 이라 전부 no-op 으로 끝난다.
+
+    하나가 실패해도 앱은 떠야 한다(스케줄러는 부가기능, 웹 서빙이 본체) → 개별 try.
+    과거 `@app.on_event("startup")` 5개였는데 deprecated 라 lifespan 으로 합쳤다.
+    """
+    from app.admin.ops.services.curation_scheduler import start as _start_curation
+    from app.admin.ops.services.ig_backfill_scheduler import start as _start_ig_backfill
+    from app.admin.ops.services.ig_report_scheduler import start as _start_ig_report
+    from app.admin.ops.services.ig_token_refresh import start as _start_ig_token
+    from app.admin.ops.services.scripts_scheduler import start as _start_scripts
+
+    for name, starter in (
+        ("curation", _start_curation),          # 매일 1채널 큐레이션
+        ("scripts", _start_scripts),            # 매주 후기→대본 브리지
+        ("ig_backfill", _start_ig_backfill),    # 과거영상 IG 백필
+        ("ig_report", _start_ig_report),        # 일일 운영 리포트
+        ("ig_token_refresh", _start_ig_token),  # IG 장기토큰 40일 갱신
+    ):
+        try:
+            starter()
+        except Exception:
+            logging.getLogger(__name__).exception("스케줄러 기동 실패: %s", name)
+    yield
+
+
+app = FastAPI(title="숏크루", lifespan=_lifespan)
 app.include_router(ops_api_router, prefix="/admin/api/ops", tags=["admin-ops"])
 app.include_router(ig_webhook_router, tags=["webhooks"])  # 공개(인증 없음): /webhooks/instagram
 
@@ -86,41 +119,4 @@ app.include_router(admin_router)
 app.include_router(client_router)
 
 
-@app.on_event("startup")
-async def _startup_curation_scheduler() -> None:
-    """n8n 의존 없이 앱 자체가 매일 1채널 큐레이션(env 로 켜짐)."""
-    from app.admin.ops.services.curation_scheduler import start as _start_curation
 
-    _start_curation()
-
-
-@app.on_event("startup")
-async def _startup_scripts_scheduler() -> None:
-    """n8n 의존 없이 앱 자체가 매주 후기→대본 브리지 실행(env 로 켜짐)."""
-    from app.admin.ops.services.scripts_scheduler import start as _start_scripts
-
-    _start_scripts()
-
-
-@app.on_event("startup")
-async def _startup_ig_backfill_scheduler() -> None:
-    """n8n 의존 없이 앱 자체가 과거영상을 계정별 소량씩 IG 백필(env 로 켜짐)."""
-    from app.admin.ops.services.ig_backfill_scheduler import start as _start_ig_backfill
-
-    _start_ig_backfill()
-
-
-@app.on_event("startup")
-async def _startup_ig_report_scheduler() -> None:
-    """인스타 일일 운영 리포트를 앱이 직접 디스코드로 발송(env 로 켜짐)."""
-    from app.admin.ops.services.ig_report_scheduler import start as _start_ig_report
-
-    _start_ig_report()
-
-
-@app.on_event("startup")
-async def _startup_ig_token_refresh() -> None:
-    """IG 장기토큰 40일 주기 자동갱신(만료 근절, env 로 켜짐)."""
-    from app.admin.ops.services.ig_token_refresh import start as _start_ig_token
-
-    _start_ig_token()
