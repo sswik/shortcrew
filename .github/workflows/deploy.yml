@@ -50,9 +50,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
+          cache: pip          # 캐시를 쓰므로 설치에 --no-cache-dir 를 붙이면 안 된다
+                              # (캐시 폴더가 안 생겨 post 단계가 잡을 실패시킨다)
       - name: 의존성 설치
-        run: pip install --no-cache-dir -r requirements.txt
+        run: pip install -r requirements.txt
       - name: 테스트
         env:
           DATABASE_URL: mysql+pymysql://root:ci@127.0.0.1:3306/crews
