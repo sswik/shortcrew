@@ -59,4 +59,5 @@ CHANNEL_BUILDERS: tuple[ChannelBuilder, ...] = (
     pumps_channels.build_35,
     pumps_channels.build_36,
     pumps_channels.build_37,
+    pumps_channels.build_100,  # Agent PM(쿠파스 업무 시간 계산서 몰)
 )

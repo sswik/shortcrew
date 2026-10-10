@@ -244,6 +244,10 @@ _CHANNEL_TREND_SEEDS: dict[str, dict[str, list[str]]] = {
         "naver_category_id": ["50000172", "50000167"],
         "trend_keywords": ["스포츠과학", "러닝화", "트레이닝복", "스마트워치", "마사지건", "단백질쉐이크", "기능성웨어", "홈트용품"],
     },
+    "100": {
+        "naver_category_id": ["50000167", "50000175"],
+        "trend_keywords": ["업무자동화", "생산성도구", "키보드", "모니터암", "노트북거치대", "업무용품", "프로젝트관리", "시간관리"],
+    },
 }
 
 
@@ -407,3 +411,8 @@ def build_36() -> dict:
 
 def build_37() -> dict:
     return _build_channel(cid="37", slug_fallback="sports")
+
+
+def build_100() -> dict:
+    """Agent PM(@next_agent_pm) — 쿠파스 «업무 시간 계산서» 몰. IG 는 원래 채널 100 으로 연결돼 있었다."""
+    return _build_channel(cid="100", slug_fallback="agent-pm")
