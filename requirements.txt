@@ -1,16 +1,24 @@
-fastapi>=0.115.0
-uvicorn>=0.30.0
-python-multipart>=0.0.6
-python-dotenv>=1.0.0
-httpx>=0.27.0
-gspread>=6.0.0
-google-auth>=2.0.0
-pandas>=2.0.0
-pyjwt>=2.8.0
-cryptography>=42.0.0
-jinja2>=3.1.0
-markupsafe>=2.1.0
-google-genai>=1.0.0
-pydantic>=2.0.0
-sqlalchemy>=2.0.0
-PyMySQL>=1.1.0
+# 버전 고정 — 2026-10-10. 운영 중인 Cloud Run 이미지에서 추출한 known-good 조합이다.
+#
+# 고정하는 이유: 이전에는 `>=` 만 적혀 있어 빌드 시점마다 다른 버전이 설치됐다.
+# 실제로 로컬 venv 0.136.3 / 운영 이미지 0.141.1 / CI 0.143.0 으로 갈렸고,
+# FastAPI 가 `include_router` 를 평탄화하지 않고 `_IncludedRouter` 로 감싸도록 바뀌면서
+# 라우트 스냅샷 테스트가 CI 에서만 깨졌다. 운영에 breaking 버전이 조용히 들어올 수 있는
+# 구조였으므로 고정한다. 올릴 때는 의도적으로 한 번에 하나씩 올리고 테스트로 확인한다.
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn==0.53.0
+python-multipart==0.0.32
+python-dotenv==1.2.3
+httpx==0.28.1
+gspread==6.2.1
+google-auth==2.58.0
+pandas==3.0.6
+pyjwt==2.14.0
+cryptography==50.0.1
+jinja2==3.1.6
+markupsafe==3.0.3
+google-genai==2.24.0
+pydantic==2.13.5
+sqlalchemy==2.0.54
+PyMySQL==1.2.3

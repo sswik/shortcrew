@@ -143,13 +143,25 @@ class TestSmoke(unittest.TestCase):
         snap = os.path.join(os.path.dirname(__file__), "routes_snapshot.txt")
         with open(snap, encoding="utf-8") as f:
             expected = {ln.strip() for ln in f if ln.strip()}
-        current = set()
-        for route in self._main.app.routes:
-            path = getattr(route, "path", None)
-            if path is None:
-                continue
-            methods = sorted(getattr(route, "methods", None) or [])
-            current.add(f"{path} [{','.join(methods)}]")
+        # FastAPI 0.141+ 는 `include_router` 한 라우터를 평탄화하지 않고 `_IncludedRouter`
+        # 래퍼로 보관한다. 구버전처럼 `app.routes` 만 훑으면 하위 라우트가 전부 누락되므로
+        # 래퍼를 만나면 원본 라우터로 내려가며 prefix 를 이어붙인다(양쪽 버전 모두 동작).
+        def walk(routes, prefix: str = "") -> set:
+            found = set()
+            for route in routes:
+                included = getattr(route, "original_router", None)
+                if included is not None:
+                    ctx = getattr(route, "include_context", None)
+                    found |= walk(included.routes, prefix + (getattr(ctx, "prefix", "") or ""))
+                    continue
+                path = getattr(route, "path", None)
+                if path is None:
+                    continue
+                methods = sorted(getattr(route, "methods", None) or [])
+                found.add(f"{prefix}{path} [{','.join(methods)}]")
+            return found
+
+        current = walk(self._main.app.routes)
         missing = sorted(expected - current)
         added = sorted(current - expected)
         self.assertEqual((missing, added), ([], []), f"\n사라진 라우트: {missing}\n새 라우트: {added}")
